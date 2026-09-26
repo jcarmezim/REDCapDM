@@ -1,3 +1,10 @@
+# REDCapDM (development version)
+
+## New features
+
+- Added `outlier_iqr()` and `outlier_zscore()`, two helper functions to flag numeric outliers (Tukey IQR fences and z-score thresholding respectively) that can be used directly inside the `expression` argument of `rd_query()` and `rd_event()`.
+- Added `check_dictionary()`, which compares two versions of a REDCap data dictionary (e.g. two exports of the same project taken at different times) and classifies each field as `Added`, `Removed`, `Modified` or `Unchanged`, similarly to how `check_queries()` tracks changes between two query reports.
+
 # REDCapDM 1.0-1
 
 ## Bug fixes
