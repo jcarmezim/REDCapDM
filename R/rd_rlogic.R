@@ -36,6 +36,7 @@
 #'   )
 #'
 #' @export
+#' @importFrom lubridate dmy mdy ymd ydm myd dym year time_length interval
 
 rd_rlogic <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL, logic, var) {
 
