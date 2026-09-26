@@ -40,7 +40,9 @@ Suggests:
     kableExtra,
     testthat (>= 3.0.0),
     mockery,
-    ggplot2
+    ggplot2,
+    shiny,
+    DT
 VignetteBuilder: knitr
 Depends: 
     R (>= 4.1)

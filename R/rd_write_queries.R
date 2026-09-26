@@ -69,27 +69,7 @@ rd_write_queries <- function(project = NULL, data = NULL, queries, uri, token, f
     stop("`field` must be a single REDCap field name to write into.", call. = FALSE)
   }
 
-  # Accept either a queries data frame directly, or a list containing one (e.g. rd_query()/rd_event()/check_queries() output)
-  if (is.list(queries) && !is.data.frame(queries) && "queries" %in% names(queries)) {
-    queries <- queries$queries
-  }
-
-  if (is.list(queries) && !is.data.frame(queries)) {
-    # by_dag = TRUE output: a list of data frames, one per DAG
-    queries <- dplyr::bind_rows(queries)
-  }
-
-  if (!is.data.frame(queries)) {
-    stop("`queries` must be a data frame, or a list containing a `queries` element (the output of `rd_query()`, `rd_event()`, or `check_queries()`).", call. = FALSE)
-  }
-
-  if (!"Identifier" %in% names(queries)) {
-    stop("`queries` must contain an `Identifier` column.", call. = FALSE)
-  }
-
-  if (nrow(queries) == 0) {
-    stop("`queries` has no rows to write.", call. = FALSE)
-  }
+  queries <- normalize_queries(queries)
 
   longitudinal <- "Event" %in% names(queries) && any(!is.na(queries$Event) & queries$Event != "-")
 

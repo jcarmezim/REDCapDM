@@ -85,6 +85,46 @@ check_proj <- function(project, data = NULL, dic = NULL, event_form = NULL) {
 }
 
 
+## normalize_queries ----
+
+#' Normalize a `queries` Argument Into a Plain Data Frame
+#'
+#' This helper function accepts either a queries data frame directly, or a list
+#' containing one (e.g. the direct output of `rd_query()`, `rd_event()`, or
+#' `check_queries()`, including the `by_dag = TRUE` list-of-data-frames form),
+#' and returns a single validated data frame with at least an `Identifier` column.
+#' Used internally by `rd_write_queries()` and `run_query_app()`.
+#'
+#' @param queries A data frame of queries, or a list containing (or being) one.
+#'
+#' @return A validated data frame.
+
+normalize_queries <- function(queries) {
+  if (is.list(queries) && !is.data.frame(queries) && "queries" %in% names(queries)) {
+    queries <- queries$queries
+  }
+
+  if (is.list(queries) && !is.data.frame(queries)) {
+    # by_dag = TRUE output: a list of data frames, one per DAG
+    queries <- dplyr::bind_rows(queries)
+  }
+
+  if (!is.data.frame(queries)) {
+    stop("`queries` must be a data frame, or a list containing a `queries` element (the output of `rd_query()`, `rd_event()`, or `check_queries()`).", call. = FALSE)
+  }
+
+  if (!"Identifier" %in% names(queries)) {
+    stop("`queries` must contain an `Identifier` column.", call. = FALSE)
+  }
+
+  if (nrow(queries) == 0) {
+    stop("`queries` has no rows to write.", call. = FALSE)
+  }
+
+  queries
+}
+
+
 #' Round Numbers to a Specified Number of Digits ----
 #'
 #' This function rounds numeric values to the specified number of decimal digits,
