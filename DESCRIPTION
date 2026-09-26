@@ -33,7 +33,8 @@ Imports:
     cli,
     forcats,
     lifecycle,
-    magrittr
+    magrittr,
+    lubridate
 Suggests:
     knitr,
     rmarkdown,

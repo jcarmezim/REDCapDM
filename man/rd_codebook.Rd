@@ -48,7 +48,7 @@ A list with:
 \description{
 \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#experimental}{\figure{lifecycle-experimental.svg}{options: alt='[Experimental]'}}}{\strong{[Experimental]}}
 
-Builds a descriptive summary table ("Table 1") for a set of variables in a (typically already transformed, see \code{\link[=rd_transform]{rd_transform()}}) REDCap dataset, reusing the variable labels already stored in the dictionary/data. Numeric variables are summarized with mean (SD) and/or median \link{Q1, Q3}, date variables with their range, and factor/character variables with counts and percentages per level. The table can optionally be stratified by a grouping variable (e.g. treatment arm, event, or Data Access Group), with an additional "Overall" column.
+Builds a descriptive summary table ("Table 1") for a set of variables in a (typically already transformed, see \code{\link[=rd_transform]{rd_transform()}}) REDCap dataset, reusing the variable labels already stored in the dictionary/data. Numeric variables are summarized with mean (SD) and/or median \verb{[Q1, Q3]}, date variables with their range, and factor/character variables with counts and percentages per level. The table can optionally be stratified by a grouping variable (e.g. treatment arm, event, or Data Access Group), with an additional "Overall" column.
 }
 \details{
 This function is intentionally lightweight (it only relies on packages already used elsewhere in \strong{REDCapDM}) rather than depending on a dedicated summary-table package. For more advanced tabulation needs (e.g. p-values, custom statistical tests), consider passing the transformed data/dictionary labels into a package such as \code{gtsummary}.

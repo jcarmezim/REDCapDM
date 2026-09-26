@@ -3,7 +3,7 @@
 #' @description
 #' `r lifecycle::badge('experimental')`
 #'
-#' Builds a descriptive summary table ("Table 1") for a set of variables in a (typically already transformed, see [rd_transform()]) REDCap dataset, reusing the variable labels already stored in the dictionary/data. Numeric variables are summarized with mean (SD) and/or median [Q1, Q3], date variables with their range, and factor/character variables with counts and percentages per level. The table can optionally be stratified by a grouping variable (e.g. treatment arm, event, or Data Access Group), with an additional "Overall" column.
+#' Builds a descriptive summary table ("Table 1") for a set of variables in a (typically already transformed, see [rd_transform()]) REDCap dataset, reusing the variable labels already stored in the dictionary/data. Numeric variables are summarized with mean (SD) and/or median `[Q1, Q3]`, date variables with their range, and factor/character variables with counts and percentages per level. The table can optionally be stratified by a grouping variable (e.g. treatment arm, event, or Data Access Group), with an additional "Overall" column.
 #'
 #' @param project A list containing the REDCap data, dictionary, and event mapping (expected `redcap_data()` output). Overrides `data`, `dic`, and `event_form`.
 #' @param data A `data.frame` or `tibble` with the REDCap dataset.

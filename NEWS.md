@@ -17,6 +17,10 @@
   - `rd_checkbox()`'s branching-logic evaluation for checkboxes follows the same rule.
   - `rd_transform()` now always runs the recalculation, checkbox-transformation, and dictionary-logic-conversion steps (previously skipped entirely whenever the project had any repeating instrument), relying on the functions above to gracefully degrade instead.
 
+## Bug fixes
+
+- Added the missing `lubridate` dependency to `Imports` (`rd_rlogic()` has used it internally for some time to translate REDCap's `datediff()`/`year()` functions and date literals, but it was never declared, which could cause a runtime error for users who didn't happen to have `lubridate` installed already).
+
 # REDCapDM 1.0-1
 
 ## Bug fixes
