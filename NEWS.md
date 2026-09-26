@@ -6,6 +6,7 @@
 - Added `check_dictionary()`, which compares two versions of a REDCap data dictionary (e.g. two exports of the same project taken at different times) and classifies each field as `Added`, `Removed`, `Modified` or `Unchanged`, similarly to how `check_queries()` tracks changes between two query reports.
 - Added `rd_missing_plot()`, which summarizes and (via `ggplot2`, now in Suggests) plots the percentage of missing values per variable. For longitudinal projects with `event_form`, missingness for each variable is only computed among the events where it is actually collected, avoiding the overestimation that a naive missing-data plot would show.
 - Added `rd_codebook()`, a lightweight descriptive summary table ("Table 1") generator that reuses the dictionary's variable labels, summarizes numeric/date/categorical fields appropriately, reports missingness, and can be stratified by a grouping variable (e.g. treatment arm, DAG).
+- Added `rd_write_queries()`, a wrapper over `REDCapR::redcap_write()` that pushes the query descriptions identified by `rd_query()`/`rd_event()`/`check_queries()` back into a REDCap text field, closing the loop between identifying data queries in R and communicating them to the data-entry team. Defaults to `dry_run = TRUE` so the data to be written can be reviewed before anything is actually sent to REDCap.
 
 # REDCapDM 1.0-1
 
