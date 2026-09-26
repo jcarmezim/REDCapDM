@@ -34,12 +34,13 @@ Imports:
     forcats,
     lifecycle,
     magrittr
-Suggests: 
+Suggests:
     knitr,
     rmarkdown,
     kableExtra,
     testthat (>= 3.0.0),
-    mockery
+    mockery,
+    ggplot2
 VignetteBuilder: knitr
 Depends: 
     R (>= 4.1)
