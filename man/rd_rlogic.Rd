@@ -36,7 +36,7 @@ A list with:
 \description{
 \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#stable}{\figure{lifecycle-stable.svg}{options: alt='[Stable]'}}}{\strong{[Stable]}}
 
-Converts a REDCap logic expression into R-compatible logic. Processes one logic expression (\code{logic}) for one target variable (\code{var}) at a time. Supports common REDCap operators (\code{and}, \code{or}, \code{=}, \code{<}, \code{>}, etc.) and handles event-specific logic in longitudinal projects. Logic involving smart variables or repeated instruments may require manual review.
+Converts a REDCap logic expression into R-compatible logic. Processes one logic expression (\code{logic}) for one target variable (\code{var}) at a time. Supports common REDCap operators (\code{and}, \code{or}, \code{=}, \code{<}, \code{>}, etc.) and handles event-specific logic in longitudinal projects. Logic involving smart variables, or referencing a repeated instrument other than the one \code{var} itself belongs to, may require manual review.
 }
 \details{
 \itemize{
@@ -48,7 +48,7 @@ Converts a REDCap logic expression into R-compatible logic. Processes one logic 
 \item Handles date transformations and empty strings (\code{''}) → \code{NA}.
 \item Adjusts logic for longitudinal data using \code{event_form} if provided.
 \item Evaluates the translated R logic against the dataset and returns the results.
-\item Logic with repeated instruments, smart variables, or multiple events per variable may require manual inspection.
+\item Logic with smart variables, multiple events per variable, or a repeated instrument different from the one \code{var} belongs to, may require manual inspection. Logic that exclusively references variables from the same repeating form as \code{var} is evaluated normally (each row already represents a single instance of that form).
 }
 }
 \examples{

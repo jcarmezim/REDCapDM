@@ -3,7 +3,7 @@
 #' @description
 #' `r lifecycle::badge('stable')`
 #'
-#' Converts a REDCap logic expression into R-compatible logic. Processes one logic expression (`logic`) for one target variable (`var`) at a time. Supports common REDCap operators (`and`, `or`, `=`, `<`, `>`, etc.) and handles event-specific logic in longitudinal projects. Logic involving smart variables or repeated instruments may require manual review.
+#' Converts a REDCap logic expression into R-compatible logic. Processes one logic expression (`logic`) for one target variable (`var`) at a time. Supports common REDCap operators (`and`, `or`, `=`, `<`, `>`, etc.) and handles event-specific logic in longitudinal projects. Logic involving smart variables, or referencing a repeated instrument other than the one `var` itself belongs to, may require manual review.
 #'
 #' @param project A list containing the REDCap data, dictionary, and event mapping (expected `redcap_data()` output). Overrides `data`, `dic`, and `event_form`.
 #' @param data A `data.frame` or `tibble` with the REDCap dataset.
@@ -19,7 +19,7 @@
 #' * Handles date transformations and empty strings (`''`) → `NA`.
 #' * Adjusts logic for longitudinal data using `event_form` if provided.
 #' * Evaluates the translated R logic against the dataset and returns the results.
-#' * Logic with repeated instruments, smart variables, or multiple events per variable may require manual inspection.
+#' * Logic with smart variables, multiple events per variable, or a repeated instrument different from the one `var` belongs to, may require manual inspection. Logic that exclusively references variables from the same repeating form as `var` is evaluated normally (each row already represents a single instance of that form).
 #'
 #' @return A list with:
 #' \describe{
@@ -102,16 +102,26 @@ rd_rlogic <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL
     check_lgl <- rlogic_var %in% names(data)
   }
 
-  # Error: one of the variables is in a repeated instrument
+  # Error: one of the variables is in a repeated instrument on a *different* form
+  # than `var` itself. Referencing a variable from the same repeating form as `var`
+  # is safe under the current row-wise evaluation model, since each row already
+  # represents a single instance of that form; only cross-form references are
+  # genuinely ambiguous (the rows of different forms/instances don't align 1:1).
   if (repeat_instrument) {
     rep_forms <- unique(na.omit(data$redcap_repeat_instrument))
     bad <- dic$field_name %in% rlogic_var & dic$form_name %in% rep_forms
+
     if (any(bad)) {
-      vars <- paste0(dic$field_name[bad], " (form:", dic$form_name[bad], ")", collapse = ", ")
-      stop(sprintf(
-        "This function cannot translate logic involving variables that belong to repeated instruments. Review the following variables manually: %s",
-        vars
-      ), call. = FALSE)
+      var_form <- dic$form_name[dic$field_name %in% var]
+      same_form <- length(var_form) > 0 && all(dic$form_name[bad] %in% var_form[1])
+
+      if (!same_form) {
+        vars <- paste0(dic$field_name[bad], " (form:", dic$form_name[bad], ")", collapse = ", ")
+        stop(sprintf(
+          "This function cannot translate logic involving variables that belong to a repeated instrument other than the one `%s` itself is on. Review the following variables manually: %s",
+          var, vars
+        ), call. = FALSE)
+      }
     }
   }
 

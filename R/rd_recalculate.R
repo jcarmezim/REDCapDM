@@ -17,6 +17,7 @@
 #' * If differences exist, new fields `[field_name]_recalc` are added to the dataset and dictionary.
 #' * Works for single-event projects; for longitudinal projects, `event_form` must be provided.
 #' * Fields with incomplete branching logic or smart variables may fail to recalculate.
+#' * For projects with repeating instruments, only calculated fields whose formula exclusively references variables from the same repeating form as the calculated field itself can be recalculated (each row already represents a single instance of that form, so this remains well-defined); fields that reference a different form are reported as not transcribed, same as any other untranslatable logic.
 #'
 #' @return A list with:
 #' \describe{
@@ -88,11 +89,11 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
     warning("The dataset contains date fields stored as character class, which may lead to incorrect or inconsistent date transcription results. Use the `rd_dates` function before this one to properly format these date fields.", call. = FALSE)
   }
 
-  # Proceed only if the project is not longitudinal or has event-form mapping, and is not repeated
+  # Proceed only if the project is not longitudinal or has event-form mapping
   if (!(longitudinal & is.null(event_form))) {
 
     if(repeat_instrument) {
-      stop("The dataset contains repeated instruments, which are not supported by this function. ", call. = FALSE)
+      message("The dataset contains repeated instruments. Only calculated fields whose formula exclusively references variables from the same repeating form as the calculated field itself can be recalculated; the rest will be reported as not transcribed below.")
     }
 
     # Replace `NA` in branching logic fields with empty strings

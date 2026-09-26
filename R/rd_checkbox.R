@@ -157,9 +157,11 @@ rd_checkbox <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
     if (is.null(event_form) & longitudinal) {
       warning("Branching logic evaluation could not be performed because the project contains multiple events and the event-form correspondence was not specified. Please provide the `event_form` argument to enable branching logic evaluation.", call. = FALSE)
     } else {
-      # Handle projects with repeated instruments where branching logic can't be evaluated
+      # Handle projects with repeated instruments: branching logic can only be evaluated
+      # when it exclusively references variables from the same repeating form as the
+      # checkbox itself; anything else will be reported below as not transcribed.
       if (repeat_instrument) {
-        warning("The project contains repeated instruments, and this function cannot accurately evaluate the branching logic of checkboxes in such cases.", call. = FALSE)
+        warning("The project contains repeated instruments. Branching logic for checkboxes can only be evaluated when it exclusively references variables from the same repeating form as the checkbox itself; other cases will be reported below as not transcribed.", call. = FALSE)
       }
 
       # Handle the fact that a rd_factor was performed before this function

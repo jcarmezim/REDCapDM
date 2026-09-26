@@ -9,6 +9,14 @@
 - Added `rd_write_queries()`, a wrapper over `REDCapR::redcap_write()` that pushes the query descriptions identified by `rd_query()`/`rd_event()`/`check_queries()` back into a REDCap text field, closing the loop between identifying data queries in R and communicating them to the data-entry team. Defaults to `dry_run = TRUE` so the data to be written can be reviewed before anything is actually sent to REDCap.
 - Added `run_query_app()`, a Shiny app (requires `shiny`/`DT`, both now in Suggests) to browse, filter, and annotate a query report (`Status`/`Comment` per query) interactively, export the annotated table to Excel, and optionally push it back to REDCap via `rd_write_queries()` behind a preview/confirmation modal.
 
+## Changes
+
+- `rd_recalculate()`, `rd_rlogic()`, `rd_checkbox()`, and `rd_transform()` now support projects with repeating instruments instead of unconditionally refusing them:
+  - `rd_rlogic()` only refuses logic that references a variable from a repeated instrument *other than* the one its own target variable belongs to; logic that stays within a single repeating form is evaluated normally, since each row already represents one instance of that form.
+  - `rd_recalculate()` no longer stops on repeating instruments: it recalculates the calculated fields whose formula stays within the same repeating form, and reports the rest as not transcribed (as it already did for any other untranslatable logic).
+  - `rd_checkbox()`'s branching-logic evaluation for checkboxes follows the same rule.
+  - `rd_transform()` now always runs the recalculation, checkbox-transformation, and dictionary-logic-conversion steps (previously skipped entirely whenever the project had any repeating instrument), relying on the functions above to gracefully degrade instead.
+
 # REDCapDM 1.0-1
 
 ## Bug fixes

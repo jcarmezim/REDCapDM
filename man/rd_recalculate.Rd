@@ -44,6 +44,7 @@ Recalculates fields marked as calculated in the REDCap dictionary, compares them
 \item If differences exist, new fields \verb{[field_name]_recalc} are added to the dataset and dictionary.
 \item Works for single-event projects; for longitudinal projects, \code{event_form} must be provided.
 \item Fields with incomplete branching logic or smart variables may fail to recalculate.
+\item For projects with repeating instruments, only calculated fields whose formula exclusively references variables from the same repeating form as the calculated field itself can be recalculated (each row already represents a single instance of that form, so this remains well-defined); fields that reference a different form are reported as not transcribed, same as any other untranslatable logic.
 }
 }
 \examples{

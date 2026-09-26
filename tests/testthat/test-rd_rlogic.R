@@ -304,21 +304,43 @@ test_that("rd_rlogic stops when the same variable is specified for different eve
   )
 })
 
-test_that("rd_rlogic errors when logic references variable in a repeated instrument", {
-  # Build a dataset with redcap_repeat_instrument and a dic marking the form
+test_that("rd_rlogic errors when logic references a variable from a *different* repeated instrument", {
+  # Build a dataset with redcap_repeat_instrument, where `othervar` (the variable
+  # being evaluated) is on a non-repeating form, but the logic references `repvar`,
+  # which belongs to a repeating form - a genuinely ambiguous cross-form reference.
+  df <- data.frame(record_id = 1:2,
+                   redcap_event_name = c("ev1", "ev1"),
+                   redcap_repeat_instrument = c("form_repeat", NA),
+                   repvar = c(1, 0),
+                   othervar = c(1, 0),
+                   stringsAsFactors = FALSE)
+  dic <- rbind(
+    make_dic("repvar", form = "form_repeat"),
+    make_dic("othervar", form = "other_form")
+  )
+  logic <- "if([repvar]='1',1,0)"
+  expect_error(
+    rd_rlogic(data = df, dic = dic, event_form = data.frame(form = c("form_repeat", "other_form"), unique_event_name = "ev1", stringsAsFactors = FALSE),
+              logic = logic, var = "othervar"),
+    "cannot translate logic involving variables that belong to a repeated instrument other than the one"
+  )
+})
+
+test_that("rd_rlogic evaluates logic that only references variables from the *same* repeated instrument", {
+  # `repvar2`'s logic only references `repvar`, and both are on the same repeating form,
+  # so evaluation should succeed (each row already represents a single instance of that form).
   df <- data.frame(record_id = 1:2,
                    redcap_event_name = c("ev1", "ev1"),
                    redcap_repeat_instrument = c("form_repeat", NA),
                    repvar = c(1, 0),
                    stringsAsFactors = FALSE)
-  # dic says repvar belongs to form_repeat (so it's in a repeated instrument)
-  dic <- make_dic("repvar", form = "form_repeat")
+  dic <- make_dic(c("repvar", "repvar2"), form = "form_repeat")
   logic <- "if([repvar]='1',1,0)"
-  expect_error(
-    rd_rlogic(data = df, dic = dic, event_form = data.frame(form="form_repeat", unique_event_name="ev1", stringsAsFactors = FALSE),
-              logic = logic, var = "repvar"),
-    "cannot translate logic involving variables that belong to repeated instruments"
-  )
+
+  res <- rd_rlogic(data = df, dic = dic, event_form = data.frame(form = "form_repeat", unique_event_name = "ev1", stringsAsFactors = FALSE),
+                    logic = logic, var = "repvar2")
+
+  expect_equal(res$eval, c(1, 0))
 })
 
 test_that("rd_rlogic maps factor variables used in arithmetic to numeric via choices_calculations_or_slider_labels", {

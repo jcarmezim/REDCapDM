@@ -54,6 +54,39 @@ test_that("recalculate works with project list input", {
   expect_true(any(grepl("_recalc$", names(res$data)) | sapply(res$data, function(x) !is.null(x))))
 })
 
+test_that("recalculate no longer stops on repeated instruments: same-form calc fields still recalculate, cross-form ones are reported as not transcribed", {
+  data_rep <- data.frame(
+    record_id = 1:2,
+    redcap_repeat_instrument = c("rep_form", NA),
+    val1 = c(2, 3),
+    val2 = c(0, 0),
+    bad_calc = c(0, 0),
+    stringsAsFactors = FALSE
+  )
+  dic_rep <- data.frame(
+    field_name = c("val1", "val2", "bad_calc"),
+    field_label = c("Value 1", "Value 2", "Bad calc"),
+    form_name = c("rep_form", "rep_form", "other_form"),
+    field_type = c("text", "calc", "calc"),
+    choices_calculations_or_slider_labels = c(NA, "[val1]*2", "[val1]*2"),
+    branching_logic_show_field_only_if = NA_character_,
+    text_validation_type_or_show_slider_number = NA_character_,
+    stringsAsFactors = FALSE
+  )
+
+  expect_message(
+    res <- suppressWarnings(rd_recalculate(data = data_rep, dic = dic_rep)),
+    "Only calculated fields whose formula exclusively references variables from the same repeating form"
+  )
+
+  # val2's formula only references val1, on the same repeating form -> recalculated
+  expect_true("val2_recalc" %in% names(res$data))
+  expect_equal(res$data$val2_recalc, c(4, 6))
+
+  # bad_calc's formula references val1 from a *different* form -> not transcribed
+  expect_false("bad_calc_recalc" %in% names(res$data))
+})
+
 test_that("recalculate warns for character datetime fields", {
   dic_date <- tibble(
     field_name = "d_admission",

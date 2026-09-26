@@ -66,6 +66,37 @@ test_that("function warns about repeated instruments", {
   )
 })
 
+test_that("rd_checkbox evaluates branching logic for a repeating instrument when it stays within the same form", {
+  data_rep <- data.frame(
+    record_id = 1:2,
+    redcap_repeat_instrument = c("rep_form", "rep_form"),
+    gate = c(1, 0),
+    chk___1 = c(1, 1),
+    stringsAsFactors = FALSE
+  )
+
+  dic_rep <- data.frame(
+    field_name = c("gate", "chk"),
+    field_label = c("Gate", "Checkbox"),
+    form_name = c("rep_form", "rep_form"),
+    field_type = c("text", "checkbox"),
+    choices_calculations_or_slider_labels = c(NA, "1, Option A"),
+    branching_logic_show_field_only_if = c(NA, "[gate]='1'"),
+    text_validation_type_or_show_slider_number = NA_character_,
+    stringsAsFactors = FALSE
+  )
+
+  res <- suppressWarnings(rd_checkbox(data = data_rep, dic = dic_rep, na_logic = "eval"))
+
+  # Record 1 (gate = 1): branching logic satisfied -> checkbox value kept
+  # Record 2 (gate = 0): branching logic not satisfied -> checkbox value set to missing
+  chk_col <- grep("^chk", names(res$data), value = TRUE)
+  chk_col <- chk_col[!grepl("\\.factor$", chk_col)]
+
+  expect_false(is.na(res$data[[chk_col]][1]))
+  expect_true(is.na(res$data[[chk_col]][2]))
+})
+
 test_that("running rd_checkbox twice cannot be done", {
   result1 <- rd_checkbox(covican)
 
