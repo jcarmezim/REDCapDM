@@ -5,6 +5,7 @@
 - Added `outlier_iqr()` and `outlier_zscore()`, two helper functions to flag numeric outliers (Tukey IQR fences and z-score thresholding respectively) that can be used directly inside the `expression` argument of `rd_query()` and `rd_event()`.
 - Added `check_dictionary()`, which compares two versions of a REDCap data dictionary (e.g. two exports of the same project taken at different times) and classifies each field as `Added`, `Removed`, `Modified` or `Unchanged`, similarly to how `check_queries()` tracks changes between two query reports.
 - Added `rd_missing_plot()`, which summarizes and (via `ggplot2`, now in Suggests) plots the percentage of missing values per variable. For longitudinal projects with `event_form`, missingness for each variable is only computed among the events where it is actually collected, avoiding the overestimation that a naive missing-data plot would show.
+- Added `rd_codebook()`, a lightweight descriptive summary table ("Table 1") generator that reuses the dictionary's variable labels, summarizes numeric/date/categorical fields appropriately, reports missingness, and can be stratified by a grouping variable (e.g. treatment arm, DAG).
 
 # REDCapDM 1.0-1
 
