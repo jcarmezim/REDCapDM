@@ -116,6 +116,12 @@ rd_dictionary <- function(project = NULL, data = NULL, dic = NULL, event_form = 
   # Starting time
   start_time <- Sys.time()
 
+  # Computed once and reused for every rd_rlogic() call in both loops below
+  # (this is the hottest path in rd_transform(): one call per dictionary row
+  # with branching logic or a calculation, potentially the whole dictionary),
+  # instead of having rd_rlogic() re-scan every column of `data` each time.
+  factor_cols <- names(data)[vapply(data, is.factor, logical(1))]
+
   # Identify rows in the dictionary with branching logic that needs evaluation
   pos_branch <- which(!dic$branching_logic_show_field_only_if %in% "")
 
@@ -130,7 +136,8 @@ rd_dictionary <- function(project = NULL, data = NULL, dic = NULL, event_form = 
             dic        = dic,
             event_form = event_form,
             logic      = dic$branching_logic_show_field_only_if[i],
-            var        = dic$field_name[i]
+            var        = dic$field_name[i],
+            factor_cols = factor_cols
           )$rlogic,
           silent = TRUE
         )
@@ -172,7 +179,8 @@ rd_dictionary <- function(project = NULL, data = NULL, dic = NULL, event_form = 
             dic        = dic,
             event_form = event_form,
             logic      = dic$choices_calculations_or_slider_labels[i],
-            var        = dic$field_name[i]
+            var        = dic$field_name[i],
+            factor_cols = factor_cols
           )$rlogic,
           silent = TRUE
         )
@@ -222,7 +230,7 @@ rd_dictionary <- function(project = NULL, data = NULL, dic = NULL, event_form = 
     tabla <- tibble::tibble("Variables" = logics)
 
     # Append the table to the `results` for later reporting
-    results <- c(results, "\n", knitr::kable(tabla, "pipe", align = c("ccc"), caption = "Variables with unconverted branching logic"))
+    results <- c(results, "\n", build_pipe_table(tabla, align = c("ccc"), caption = "Variables with unconverted branching logic"))
   }
 
   # Generating a global warning if one of the iteractions of the loop generates a warning inside rd_rlogic

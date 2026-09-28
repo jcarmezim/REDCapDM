@@ -153,10 +153,11 @@ rd_event <- function(project = NULL,
         }
 
         # Assign the current event name to the missing records - factor version
+        # (`raw$redcap_event_name` was just set to the same constant `event[k]`
+        # for every row above, so this lookup is invariant across rows; compute
+        # it once instead of re-scanning `data0` for every row of `raw`)
         if ("redcap_event_name.factor" %in% names(raw)) {
-          for (i in seq_len(nrow(raw))) {
-            raw$redcap_event_name.factor[i] <- unique(data0$redcap_event_name.factor[data0$redcap_event_name %in% raw$redcap_event_name[i]])
-          }
+          raw$redcap_event_name.factor <- unique(data0$redcap_event_name.factor[data0$redcap_event_name %in% event[k]])
         }
 
         # Queries
@@ -335,18 +336,7 @@ rd_event <- function(project = NULL,
   rownames(report) <- NULL
 
   # Generate an HTML table for the report
-  result <- knitr::kable(report,
-    align = c("ccccc"),
-    row.names = FALSE,
-    caption = report_title,
-    format = "html",
-    longtable = TRUE
-  )
-  result <- kableExtra::kable_styling(result,
-    bootstrap_options = c("striped", "condensed"),
-    full_width = FALSE
-  )
-  result <- kableExtra::row_spec(result, 0, italic = FALSE, extra_css = "border-bottom: 1px solid grey")
+  result <- build_html_table(report, align = c("ccccc"), caption = report_title)
 
   # Return the queries and the formatted report
   list(

@@ -116,6 +116,11 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
     #   z*posneg
     # }
 
+    # Computed once and reused for every rd_rlogic() call below, instead of
+    # having rd_rlogic() re-scan every column of `data` on each of the
+    # potentially many calculated fields.
+    factor_cols <- names(data)[vapply(data, is.factor, logical(1))]
+
     # Process calculated fields: evaluate, transcribe logic, and compare results
     calc <- tibble::tibble(dic) |>
       dplyr::filter(.data$field_type == "calc", !.data$field_name %in% exclude) |>
@@ -129,7 +134,7 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
           }
         }),
         rlogic = purrr::map2(.data$choices_calculations_or_slider_labels, .data$field_name, function(x, y) {
-          rlogic <- try(suppressWarnings(rd_rlogic(data = data, dic = dic, event_form = event_form, logic = x, var = y)), silent = TRUE)
+          rlogic <- try(suppressWarnings(rd_rlogic(data = data, dic = dic, event_form = event_form, logic = x, var = y, factor_cols = factor_cols)), silent = TRUE)
           if (!inherits(rlogic, "try-error")) {
             rlogic
           } else {
@@ -229,7 +234,7 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
       ) |>
       dplyr::select("Total calculated fields" = "N", "Non-transcribed fields" = "text1", "Recalculated different fields" = "text2")
 
-    results <- c(results, "\n", knitr::kable(report1, "pipe", align = "ccc"))
+    results <- c(results, "\n", build_pipe_table(report1, align = "ccc"))
 
     # Create a detailed field-level report
     report2 <- calc |>
@@ -237,7 +242,7 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
       dplyr::arrange(.data$trans2, .data$is_equal) |>
       dplyr::select("field_name", "Transcribed?" = "trans2", "Is equal?" = "is_equal")
 
-    results <- c(results, "\n", knitr::kable(report2, "pipe", align = "ccc"))
+    results <- c(results, "\n", build_pipe_table(report2, align = "ccc"))
 
     results <- stringr::str_glue("{results}")
   } else {

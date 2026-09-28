@@ -11,6 +11,11 @@
 #' @param event_form Only applicable for longitudinal projects (presence of events). Event-to-form mapping for longitudinal projects.
 #' @param logic A single REDCap logic string (e.g., `"if([exc_1]='1' or [inc_1]='0', 1, 0)"`).
 #' @param var A single string specifying the target variable the logic applies to.
+#' @param factor_cols Optional. Character vector of the `data` column names that are factors, as
+#'   would be returned by `names(data)[sapply(data, is.factor)]`. Callers that invoke `rd_rlogic()`
+#'   repeatedly on the same `data` (e.g. once per calculated field or per checkbox) can compute this
+#'   once and pass it in to avoid re-scanning every column of `data` on every call. If `NULL`
+#'   (default), it is computed internally as before.
 #'
 #' @details
 #' * Translates REDCap operators and functions into R equivalents:
@@ -36,9 +41,8 @@
 #'   )
 #'
 #' @export
-#' @importFrom lubridate dmy mdy ymd ydm myd dym year time_length interval
 
-rd_rlogic <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL, logic, var) {
+rd_rlogic <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL, logic, var, factor_cols = NULL) {
 
   # Handle potential overwriting when both `project` and other arguments are provided
   if (!is.null(project)) {
@@ -76,11 +80,11 @@ rd_rlogic <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL
   rlogic <- logic # Initialize REDCap logic to be converted
 
   # Process checkboxes and other specific cases in REDCap logic
+  # (the capture group is bounded to `[^\\[\\]]+` so it can't span across
+  # separate `[var(code)]` references; a single global gsub then rewrites
+  # every occurrence in one pass, instead of looping once per "]" found)
   if (grepl("\\)\\]", rlogic)) {
-    num_vars <- stringr::str_count(rlogic, "]")
-    for (i in 1:num_vars) {
-      rlogic <- gsub("\\[(.+)\\((\\d+)\\)\\]", "[\\1___\\2]", rlogic)
-    }
+    rlogic <- gsub("\\[([^\\[\\]]+)\\((\\d+)\\)\\]", "[\\1___\\2]", rlogic)
   }
 
   # Modify event-name and current-instance occurrences
@@ -139,9 +143,13 @@ rd_rlogic <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL
     stringr::str_extract_all("(?<=\\[)[^\\]]+(?=\\]\\s*[+\\-*/])") |>
     purrr::pluck(1)
 
-  factors <- data |>
-    dplyr::select(dplyr::where(is.factor)) |>
-    names()
+  factors <- if (!is.null(factor_cols)) {
+    factor_cols
+  } else {
+    data |>
+      dplyr::select(dplyr::where(is.factor)) |>
+      names()
+  }
 
   vars_calc <- intersect(vars_calc, factors)
 
@@ -296,6 +304,13 @@ rd_rlogic <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL
   #   z <- z/10^digits
   #   z*posneg
   # }
+
+  # `lubridate` is only needed at runtime when the translated logic actually
+  # calls it (date literals, datediff()/year()); it's a Suggests package so
+  # projects whose logic never touches dates don't need it installed.
+  if (grepl("lubridate::", rlogic, fixed = TRUE) && !requireNamespace("lubridate", quietly = TRUE)) {
+    stop("The `lubridate` package is required to evaluate date-related REDCap logic (datediff()/year()/date literals). Install it with `install.packages('lubridate')`.", call. = FALSE)
+  }
 
   # Check for date fields in the logic that are still in character class
   date_class <- dic |>

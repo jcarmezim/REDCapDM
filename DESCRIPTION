@@ -33,8 +33,7 @@ Imports:
     cli,
     forcats,
     lifecycle,
-    magrittr,
-    lubridate
+    magrittr
 Suggests:
     knitr,
     rmarkdown,
@@ -43,7 +42,8 @@ Suggests:
     mockery,
     ggplot2,
     shiny,
-    DT
+    DT,
+    lubridate
 VignetteBuilder: knitr
 Depends: 
     R (>= 4.1)

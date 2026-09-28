@@ -302,11 +302,17 @@ rd_query <- function(project = NULL, variables = NA, expression = NA, negate = F
 
     # Convert REDCap logic into R-compatible logic
     if ((!is.null(event_form) | all(!c("redcap_event_name", "redcap_event_name.factor") %in% names(data))) & all(stringr::str_detect(branch$branch, paste(c("\\[", "\\]"), collapse = "|")))) {
+      # Computed once and reused for every rd_rlogic() call below, instead of
+      # having rd_rlogic() re-scan every column of `data` on each variable.
+      factor_cols <- names(data)[vapply(data, is.factor, logical(1))]
+
       for (j in seq_len(nrow(branch))) {
-        evaluation <- try(rd_rlogic(data = data, dic = dic, event_form = event_form, logic = branch$branch[j], var = branch$var[j])$rlogic, silent = TRUE)
+        # (called once per row and reused, rather than calling rd_rlogic() twice
+        # with identical arguments just to test-then-use the result)
+        evaluation <- try(rd_rlogic(data = data, dic = dic, event_form = event_form, logic = branch$branch[j], var = branch$var[j], factor_cols = factor_cols)$rlogic, silent = TRUE)
 
         if (!inherits(evaluation, "try-error")) {
-          branch$branch[j] <- rd_rlogic(data = data, dic = dic, event_form = event_form, logic = branch$branch[j], var = branch$var[j])$rlogic
+          branch$branch[j] <- evaluation
         } else {
           logics <- rbind(logics, branch$var[j])
         }
@@ -823,21 +829,7 @@ rd_query <- function(project = NULL, variables = NA, expression = NA, negate = F
         dplyr::select("DAG", names(report))
 
       # Create HTML table for each DAG with proper styling and caption
-      report_dag[[i]] <- knitr::kable(report_dag[[i]],
-        align = "ccccc",
-        row.names = FALSE,
-        caption = report_title,
-        format = "html",
-        longtable = TRUE
-      )
-      report_dag[[i]] <- kableExtra::kable_styling(report_dag[[i]],
-        bootstrap_options = c("striped", "condensed"),
-        full_width = FALSE
-      )
-      report_dag[[i]] <- kableExtra::row_spec(report_dag[[i]], 0,
-        italic = FALSE,
-        extra_css = "border-bottom: 1px solid grey"
-      )
+      report_dag[[i]] <- build_html_table(report_dag[[i]], align = "ccccc", caption = report_title)
     }
 
     # Prepare final output in the 'by_dag' format
@@ -880,25 +872,7 @@ rd_query <- function(project = NULL, variables = NA, expression = NA, negate = F
     report[is.na(report)] <- "-"
 
     # Generate and style the HTML table for the report
-    result <- knitr::kable(report, "pipe",
-      align = "ccccc",
-      caption = report_title
-    )
-    viewer <- knitr::kable(report,
-      align = "ccccc",
-      row.names = FALSE,
-      caption = report_title,
-      format = "html",
-      longtable = TRUE
-    )
-    viewer <- kableExtra::kable_styling(viewer,
-      bootstrap_options = c("striped", "condensed"),
-      full_width = FALSE
-    )
-    viewer <- kableExtra::row_spec(viewer, 0,
-      italic = FALSE,
-      extra_css = "border-bottom: 1px solid grey"
-    )
+    viewer <- build_html_table(report, align = "ccccc", caption = report_title)
 
     # Prepare final output without DAG-specific split
     def <- list(

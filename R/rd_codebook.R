@@ -237,10 +237,7 @@ rd_codebook <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
   # Generate styled HTML summary
   viewer <- NULL
   if (isTRUE(return_viewer)) {
-    viewer <- knitr::kable(table_long, align = "llc", row.names = FALSE, caption = report_title, format = "html", longtable = TRUE)
-    viewer <- kableExtra::kable_styling(viewer, bootstrap_options = c("striped", "condensed"), full_width = FALSE)
-    viewer <- kableExtra::row_spec(viewer, 0, italic = FALSE, extra_css = "border-bottom: 1px solid grey")
-    viewer <- kableExtra::collapse_rows(viewer, columns = 1:2, valign = "top")
+    viewer <- build_html_table(table_long, align = "llc", caption = report_title, collapse_cols = 1:2)
   }
 
   list(

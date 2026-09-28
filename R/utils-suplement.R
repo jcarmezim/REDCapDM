@@ -146,3 +146,64 @@ round <- function(x, digits) {
   z <- z / 10^digits
   z * posneg
 }
+
+
+## build_html_table ----
+
+#' Build a Styled HTML Summary Table, or a Plain Fallback
+#'
+#' Internal helper shared by every function that returns a styled HTML
+#' `results`/`viewer` table (`knitr::kable()` + `kableExtra`). Centralizes the
+#' `requireNamespace()` guard so a missing `knitr`/`kableExtra` (both Suggests
+#' packages) produces a clear warning and `NULL` instead of a cryptic
+#' "could not find function" error partway through the function.
+#'
+#' @param df A data.frame to render.
+#' @param align Alignment string passed to `knitr::kable()`.
+#' @param caption Optional caption/title.
+#' @param collapse_cols Optional integer vector of column indices passed to
+#'   `kableExtra::collapse_rows()` (used by `rd_codebook()`).
+#'
+#' @return A styled HTML table object, or `NULL` (with a warning) if `knitr`
+#'   or `kableExtra` are not installed.
+build_html_table <- function(df, align, caption = NULL, collapse_cols = NULL) {
+  if (!requireNamespace("knitr", quietly = TRUE) || !requireNamespace("kableExtra", quietly = TRUE)) {
+    warning("The `knitr` and `kableExtra` packages are required to build the HTML summary table. Install them with `install.packages(c('knitr', 'kableExtra'))`. Returning `NULL` for this element; the underlying data is still available in the other element(s) of the result.", call. = FALSE)
+    return(NULL)
+  }
+
+  viewer <- knitr::kable(df, align = align, row.names = FALSE, caption = caption, format = "html", longtable = TRUE)
+  viewer <- kableExtra::kable_styling(viewer, bootstrap_options = c("striped", "condensed"), full_width = FALSE)
+  viewer <- kableExtra::row_spec(viewer, 0, italic = FALSE, extra_css = "border-bottom: 1px solid grey")
+
+  if (!is.null(collapse_cols)) {
+    viewer <- kableExtra::collapse_rows(viewer, columns = collapse_cols, valign = "top")
+  }
+
+  viewer
+}
+
+
+## build_pipe_table ----
+
+#' Build a Markdown ("pipe") Table Fragment, or a Plain-Text Fallback
+#'
+#' Internal helper shared by every function that appends a small markdown
+#' table to the character `results` summary via `knitr::kable(..., "pipe")`.
+#' Falls back to a plain `print()`-based rendering (base R, always available)
+#' when `knitr` isn't installed, instead of erroring outright.
+#'
+#' @param df A data.frame to render.
+#' @param align Alignment string passed to `knitr::kable()`.
+#' @param caption Optional caption.
+#'
+#' @return A character vector with the table rendered as text.
+build_pipe_table <- function(df, align, caption = NULL) {
+  if (!requireNamespace("knitr", quietly = TRUE)) {
+    out <- utils::capture.output(print(df, row.names = FALSE))
+    if (!is.null(caption)) out <- c(paste0(caption, ":"), out)
+    return(out)
+  }
+
+  knitr::kable(df, "pipe", align = align, caption = caption)
+}

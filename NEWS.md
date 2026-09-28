@@ -17,9 +17,18 @@
   - `rd_checkbox()`'s branching-logic evaluation for checkboxes follows the same rule.
   - `rd_transform()` now always runs the recalculation, checkbox-transformation, and dictionary-logic-conversion steps (previously skipped entirely whenever the project had any repeating instrument), relying on the functions above to gracefully degrade instead.
 
+## Performance
+
+- `lubridate` moved from `Imports` to `Suggests`: `rd_rlogic()` now only requires it (via `requireNamespace()`, with an informative error if missing) when the translated logic actually needs it (date literals, `datediff()`/`year()`). Projects that never use date-related REDCap logic no longer need `lubridate` installed, and `library(REDCapDM)` no longer always loads it.
+- `rd_rlogic()`'s internal factor-column detection (needed to avoid arithmetic warnings when a calculation references a factor variable) can now be precomputed once and reused via the new `factor_cols` argument, instead of re-scanning every column of `data` on every call. `rd_recalculate()`, `rd_checkbox()`, `rd_dictionary()`, and `rd_query()` — which each call `rd_rlogic()` once per calculated field/checkbox/branching-logic row — now do this, which noticeably speeds up `rd_transform()`/`rd_dictionary()` on dictionaries with many calculated fields or many fields with branching logic.
+- Simplified a redundant regex loop in `rd_rlogic()` that re-applied the same substitution once per `]` found in the logic string; a single bounded regex now handles all occurrences in one pass.
+- `rd_query()` no longer calls `rd_rlogic()` twice (once to test, once to reuse) for the same branching-logic row.
+- `rd_event()` no longer recomputes an invariant per-row lookup (the event's factor label, constant across all rows of a given event) inside a `for` loop; it's now computed once and recycled.
+- Every function that builds a styled HTML summary table (`rd_query()`, `rd_event()`, `check_queries()`, `rd_codebook()`, `check_dictionary()`) or a markdown table fragment (`rd_checkbox()`, `rd_dictionary()`, `rd_recalculate()`) now goes through shared internal helpers that check `requireNamespace("knitr")`/`requireNamespace("kableExtra")` first. Previously, any of these functions would fail with a cryptic "could not find function" error if `kableExtra` (a `Suggests`-only package) wasn't installed; they now return `NULL` for the HTML table (or a plain-text fallback for the markdown fragment) with a clear warning instead, while the rest of the result (the actual data) is still returned.
+
 ## Bug fixes
 
-- Added the missing `lubridate` dependency to `Imports` (`rd_rlogic()` has used it internally for some time to translate REDCap's `datediff()`/`year()` functions and date literals, but it was never declared, which could cause a runtime error for users who didn't happen to have `lubridate` installed already).
+- `rd_rlogic()` internally required `lubridate` unconditionally via a package-level `Imports` dependency; see Performance notes above for the fix.
 
 # REDCapDM 1.0-1
 

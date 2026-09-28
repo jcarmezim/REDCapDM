@@ -162,9 +162,7 @@ check_dictionary <- function(old, new, report_title = NULL, return_viewer = TRUE
   # Generate styled HTML summary
   viewer <- NULL
   if (isTRUE(return_viewer)) {
-    viewer <- knitr::kable(report, align = c("cc"), row.names = FALSE, caption = report_title, format = "html", longtable = TRUE)
-    viewer <- kableExtra::kable_styling(viewer, bootstrap_options = c("striped", "condensed"), full_width = FALSE)
-    viewer <- kableExtra::row_spec(viewer, 0, italic = FALSE, extra_css = "border-bottom: 1px solid grey")
+    viewer <- build_html_table(report, align = c("cc"), caption = report_title)
   }
 
   # Return results

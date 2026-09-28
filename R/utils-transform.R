@@ -118,14 +118,14 @@ recalculate <- function(data, dic, event_form = NULL, exclude_recalc = NULL){
     ) |>
     dplyr::select("Total calculated fields" = "N", "Non-transcribed fields" = "text1", "Recalculated different fields" = "text2")
 
-  results <- knitr::kable(report1, "pipe", align = "ccc")
+  results <- build_pipe_table(report1, align = "ccc")
 
   report2 <- calc |>
     dplyr::mutate(trans2 = ifelse(!is.na(.data$trans), "Yes", "No")) |>
     dplyr::arrange(.data$trans2, .data$is_equal) |>
     dplyr::select("field_name", "Transcribed?" = "trans2", "Is equal?" = "is_equal")
 
-  results <- c(results, "\n", knitr::kable(report2, "pipe", align = "ccc"))
+  results <- c(results, "\n", build_pipe_table(report2, align = "ccc"))
 
   list(
     data = data,
@@ -210,7 +210,7 @@ transform_checkboxes <- function(data, dic, event_form = NULL, checkbox_na = FAL
     #Summary with the results
     if(!is.null(review)){
       results1 <- tibble::tibble("Variables without any branching logic" = review)
-      results <- knitr::kable(results1, "pipe", align = c("ccc"), caption = caption)
+      results <- build_pipe_table(results1, align = c("ccc"), caption = caption)
       if(!is.null(review2)){
         results <- c(results, "\n")
         caption <- NULL
@@ -219,7 +219,7 @@ transform_checkboxes <- function(data, dic, event_form = NULL, checkbox_na = FAL
 
     if(!is.null(review2)){
       results2 <- tibble::tibble("Variables with a logic that can't be transcribed" = review2)
-      results <- c(results, knitr::kable(results2, "pipe", align = c("ccc"), caption = caption))
+      results <- c(results, build_pipe_table(results2, align = c("ccc"), caption = caption))
     }
 
   }else{

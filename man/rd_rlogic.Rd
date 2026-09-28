@@ -10,7 +10,8 @@ rd_rlogic(
   dic = NULL,
   event_form = NULL,
   logic,
-  var
+  var,
+  factor_cols = NULL
 )
 }
 \arguments{
@@ -25,6 +26,12 @@ rd_rlogic(
 \item{logic}{A single REDCap logic string (e.g., \code{"if([exc_1]='1' or [inc_1]='0', 1, 0)"}).}
 
 \item{var}{A single string specifying the target variable the logic applies to.}
+
+\item{factor_cols}{Optional. Character vector of the \code{data} column names that are factors, as
+would be returned by \code{names(data)[sapply(data, is.factor)]}. Callers that invoke \code{rd_rlogic()}
+repeatedly on the same \code{data} (e.g. once per calculated field or per checkbox) can compute this
+once and pass it in to avoid re-scanning every column of \code{data} on every call. If \code{NULL}
+(default), it is computed internally as before.}
 }
 \value{
 A list with:

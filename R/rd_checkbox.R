@@ -175,6 +175,10 @@ rd_checkbox <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
       review <- NULL
       review2 <- NULL
 
+      # Computed once and reused for every rd_rlogic() call below, instead of
+      # having rd_rlogic() re-scan every column of `data` on each checkbox.
+      factor_cols <- names(data)[vapply(data, is.factor, logical(1))]
+
       for (i in seq_along(var_check_dic)) {
         # Identify variables associated with each checkbox option
         vars_data <- names(data)[grep(stringr::str_glue("^{var_check_dic[i]}___"), names(data))]
@@ -189,7 +193,7 @@ rd_checkbox <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
           # Checking if the logic is already in R format
           if (grepl("<>|\\[.*?\\]", logic) & !grepl("==|!=|\\$", logic)) {
             # Translate REDCap logic to R language using rd_rlogic function
-            rlogic <- try(rd_rlogic(data = data, dic = dic, event_form = event_form, logic = logic, var = var_check_dic[i]), silent = TRUE)
+            rlogic <- try(rd_rlogic(data = data, dic = dic, event_form = event_form, logic = logic, var = var_check_dic[i], factor_cols = factor_cols), silent = TRUE)
 
             if (!inherits(rlogic, "try-error")) {
               # Evaluate the logic and apply missing values accordingly
@@ -222,7 +226,7 @@ rd_checkbox <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
       # Summarize the results of the branching logic review
       if (!is.null(review)) {
         results1 <- tibble::tibble("Variables without any branching logic" = review)
-        results <- c(results, "", knitr::kable(results1, "pipe", align = c("ccc"), caption = caption))
+        results <- c(results, "", build_pipe_table(results1, align = c("ccc"), caption = caption))
         if (!is.null(review2)) {
           results <- c(results, "\n")
           caption <- NULL
@@ -231,7 +235,7 @@ rd_checkbox <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
 
       if (!is.null(review2)) {
         results2 <- tibble::tibble("Variables with a logic that can't be transcribed" = review2)
-        results <- c(results, knitr::kable(results2, "pipe", align = c("ccc"), caption = caption))
+        results <- c(results, build_pipe_table(results2, align = c("ccc"), caption = caption))
       }
 
       data <- data
