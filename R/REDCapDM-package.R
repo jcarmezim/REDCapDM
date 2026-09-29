@@ -15,7 +15,8 @@
 #'
 #' - **Flexible Data Import**: Import data directly from REDCap using API connections or process exported REDCap files.
 #' - **Data Transformation**: Streamline the cleaning and preparation of raw datasets for analysis.
-#' - **Query Management**: Identify and track data discrepancies, missing events, and manage resolution reports.
+#' - **Query Management**: Identify and track data discrepancies, missing events, and manage resolution reports, including pushing annotations back into REDCap.
+#' - **Descriptive Reporting**: Summarize and visualize a transformed dataset (codebooks, missing-data plots) directly from the dictionary's own labels.
 #'
 #' Core Functions:
 #'
@@ -31,8 +32,14 @@
 #'    - `rd_rlogic`: Translate REDCap branching or calculation logic into R syntax.
 #'    - `rd_dictionary`: Update dictionary (translation of REDCap logic into R syntax) to reflect transformed data and logic.
 #' - `rd_query`: Identifies discrepancies (queries) in the dataset for validation.
+#'    - `outlier_iqr` / `outlier_zscore`: Helper functions to flag numeric outliers for use inside `rd_query()`'s `expression` argument.
 #' - `rd_event`: Detects missing events in longitudinal datasets.
 #' - `check_queries`: Compares historical and current query reports to track changes and additions.
+#' - `check_dictionary`: Compares two versions of a REDCap data dictionary and classifies each field as added, removed, modified, or unchanged.
+#' - `rd_write_queries`: Pushes query annotations back into a REDCap project field.
+#' - `run_query_app`: A Shiny app to browse, filter, and annotate a query report interactively.
+#' - `rd_codebook`: Generates a descriptive summary table ("Table 1") from a transformed dataset.
+#' - `rd_missing_plot`: Summarizes and plots the percentage of missing values per variable.
 #' - `rd_export`: Exports a summary report of identified queries to an Excel (.xlsx) file.
 #'
 #'

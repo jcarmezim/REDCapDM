@@ -149,7 +149,7 @@ rd_query <- function(project = NULL, variables = NA, expression = NA, negate = F
 
     # Warning: multiple events are specified
     if (length(event) > 1 & is.null(event_form)) {
-      warning("Multiple events specified. Ensure variables are collected across all events to avoid overestimation.", .call = FALSE)
+      warning("Multiple events specified. Ensure variables are collected across all events to avoid overestimation.", call. = FALSE)
     }
 
     # Filter data by events - factor version
@@ -228,7 +228,7 @@ rd_query <- function(project = NULL, variables = NA, expression = NA, negate = F
         data[, "event_id"] <- as.numeric(link[["event_id"]])
       } else {
         # Error: More than one event_id is specified and the project is non-longitudinal
-        stop("Non-longitudinal project. Please provide only one event ID.", .call = FALSE)
+        stop("Non-longitudinal project. Please provide only one event ID.", call. = FALSE)
       }
     }
   }

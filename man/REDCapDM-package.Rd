@@ -15,7 +15,8 @@ Key Features:
 \itemize{
 \item \strong{Flexible Data Import}: Import data directly from REDCap using API connections or process exported REDCap files.
 \item \strong{Data Transformation}: Streamline the cleaning and preparation of raw datasets for analysis.
-\item \strong{Query Management}: Identify and track data discrepancies, missing events, and manage resolution reports.
+\item \strong{Query Management}: Identify and track data discrepancies, missing events, and manage resolution reports, including pushing annotations back into REDCap.
+\item \strong{Descriptive Reporting}: Summarize and visualize a transformed dataset (codebooks, missing-data plots) directly from the dictionary's own labels.
 }
 
 Core Functions:
@@ -34,8 +35,16 @@ Core Functions:
 \item \code{rd_dictionary}: Update dictionary (translation of REDCap logic into R syntax) to reflect transformed data and logic.
 }
 \item \code{rd_query}: Identifies discrepancies (queries) in the dataset for validation.
+\itemize{
+\item \code{outlier_iqr} / \code{outlier_zscore}: Helper functions to flag numeric outliers for use inside \code{rd_query()}'s \code{expression} argument.
+}
 \item \code{rd_event}: Detects missing events in longitudinal datasets.
 \item \code{check_queries}: Compares historical and current query reports to track changes and additions.
+\item \code{check_dictionary}: Compares two versions of a REDCap data dictionary and classifies each field as added, removed, modified, or unchanged.
+\item \code{rd_write_queries}: Pushes query annotations back into a REDCap project field.
+\item \code{run_query_app}: A Shiny app to browse, filter, and annotate a query report interactively.
+\item \code{rd_codebook}: Generates a descriptive summary table ("Table 1") from a transformed dataset.
+\item \code{rd_missing_plot}: Summarizes and plots the percentage of missing values per variable.
 \item \code{rd_export}: Exports a summary report of identified queries to an Excel (.xlsx) file.
 }
 }

@@ -29,6 +29,49 @@ fill_data <- function(which_event, which_var, data) {
 }
 
 
+## append_step ----
+
+#' Append a Numbered Step to a `results` Summary
+#'
+#' Internal helper shared by every `rd_transform()` sub-step function
+#' (`rd_checkbox()`, `rd_recalculate()`, `rd_dictionary()`) to append a new
+#' entry to the character `results` summary they return, instead of each
+#' function duplicating the same numbering logic.
+#'
+#' When `results` is `NULL` (the function is being run standalone, or as
+#' part of `rd_transform()`, which discards this first unnumbered entry and
+#' prepends its own step numbering via `result$results[-1]`), the new entry
+#' is added unnumbered. When `results` already holds prior numbered entries
+#' (e.g. a previous step's output list was chained in via `project = `,
+#' carrying its own `results`), the next step number is inferred from the
+#' last numbered entry already present, and the new entry continues the
+#' sequence.
+#'
+#' @param results The current character `results` vector (or `NULL`).
+#' @param message The text of the new step to append, without a leading step
+#'   number or trailing newline.
+#'
+#' @return The updated `results` character vector.
+append_step <- function(results, message) {
+  if (is.null(results)) {
+    return(c(results, stringr::str_glue("{message}\n")))
+  }
+
+  if (grepl("^[A-Z]", results[1])) {
+    results[1] <- paste("1.", results[1])
+  }
+
+  last_val_res <- results |>
+    stringr::str_extract("^(\n)?\\d+\\.") |>
+    stats::na.omit() |>
+    dplyr::last() |>
+    stringr::str_remove("\\.") |>
+    as.numeric()
+
+  c(results, stringr::str_glue("\n\n{last_val_res + 1}. {message}\n"))
+}
+
+
 ## Check_proj ----
 
 #' Handle Project Arguments
@@ -125,20 +168,27 @@ normalize_queries <- function(queries) {
 }
 
 
-#' Round Numbers to a Specified Number of Digits ----
+## round_half_up ----
+
+#' Round Numbers Half Away From Zero
 #'
-#' This function rounds numeric values to the specified number of decimal digits,
-#' mimicking the behavior of the base R `round()` function but implemented manually.
+#' Rounds numeric values to the specified number of decimal digits using
+#' "round half away from zero" (e.g. `2.5` rounds to `3`), matching REDCap's
+#' own rounding of `.5` values. Deliberately named `round_half_up()` rather
+#' than `round()`: base R's `round()` uses "round half to even" (banker's
+#' rounding) for the `.5` case, and a same-named internal function would
+#' silently shadow it for every unqualified `round()` call elsewhere in the
+#' package's namespace.
 #'
 #' @param x A numeric vector to be rounded.
 #' @param digits Integer indicating the number of decimal places to round to.
 #'
 #' @return A numeric vector rounded to the specified number of digits.
 #' @examples
-#' round(3.14159, 2)
-#' round(c(-2.718, 3.14159), 1)
+#' round_half_up(3.14159, 2)
+#' round_half_up(c(-2.718, 3.14159), 1)
 #'
-round <- function(x, digits) {
+round_half_up <- function(x, digits) {
   posneg <- sign(x)
   z <- abs(x) * 10^digits
   z <- z + 0.5 + sqrt(.Machine$double.eps)

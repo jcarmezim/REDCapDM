@@ -134,23 +134,7 @@ rd_checkbox <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
   transf_message <- if (repeat_instrument || reason == "") base
   else paste0(base, " For checkboxes that have a branching logic, ", reason, " their values will be set to missing.")
 
-  if (is.null(results)) {
-    results <- c(results, stringr::str_glue("{transf_message} (rd_checkbox)\n"))
-  } else {
-
-    if(grepl("^[A-Z]", results[1])) {
-      results[1] <- paste("1.", results[1])
-    }
-
-    last_val_res <- results |>
-      stringr::str_extract("^(\n)?\\d+\\.") |>
-      na.omit() |>
-      dplyr::last() |>
-      stringr::str_remove("\\.") |>
-      as.numeric()
-
-    results <- c(results, stringr::str_glue("\n\n{last_val_res + 1}. {transf_message} (rd_checkbox)\n"))
-  }
+  results <- append_step(results, stringr::str_glue("{transf_message} (rd_checkbox)"))
 
   # Evaluate branching logic for checkbox variables if applicable
   if (any(dic$field_type == "checkbox" & dic$branching_logic_show_field_only_if != "")) {

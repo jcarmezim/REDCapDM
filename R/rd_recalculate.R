@@ -158,7 +158,7 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
         is_equal = purrr::map2_lgl(.data$calc, .data$recalc, function(x, y) {
           if (!is.null(y)) {
             if (is.numeric(x) & is.numeric(y)) {
-              identical(round(x, 3), round(y, 3))
+              identical(round_half_up(x, 3), round_half_up(y, 3))
             } else if (all(is.na(x)) & all(is.na(y))) {
               TRUE
             } else {
@@ -201,23 +201,7 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
       labelled::set_variable_labels(.labels = labels |> as.list(), .strict = FALSE)
 
     # Update results with this transformation
-    if (is.null(results)) {
-      results <- c(results, stringr::str_glue("Recalculating calculated fields and saving them as '[field_name]_recalc'. (rd_recalculate)\n"))
-    } else {
-
-      if(grepl("^[A-Z]", results[1])) {
-        results[1] <- paste("1.", results[1])
-      }
-
-      last_val_res <- results |>
-        stringr::str_extract("^(\n)?\\d+\\.") |>
-        na.omit() |>
-        dplyr::last() |>
-        stringr::str_remove("\\.") |>
-        as.numeric()
-
-      results <- c(results, stringr::str_glue("\n\n{last_val_res + 1}. Recalculating calculated fields and saving them as '[field_name]_recalc'. (rd_recalculate)\n"))
-    }
+    results <- append_step(results, "Recalculating calculated fields and saving them as '[field_name]_recalc'. (rd_recalculate)")
 
     # Generate a summary report
     report1 <- calc |>
@@ -229,8 +213,8 @@ rd_recalculate <- function(project = NULL, data = NULL, dic = NULL, event_form =
         no_equal = sum(!.data$is_equal, na.rm = TRUE),
       ) |>
       dplyr::mutate(
-        text1 = stringr::str_glue("{no_trans} ({round(no_trans*100/N, 2)}%)"),
-        text2 = stringr::str_glue("{no_equal} ({round(no_equal*100/trans, 2)}%)")
+        text1 = stringr::str_glue("{no_trans} ({round_half_up(no_trans*100/N, 2)}%)"),
+        text2 = stringr::str_glue("{no_equal} ({round_half_up(no_equal*100/trans, 2)}%)")
       ) |>
       dplyr::select("Total calculated fields" = "N", "Non-transcribed fields" = "text1", "Recalculated different fields" = "text2")
 

@@ -90,7 +90,7 @@ rd_codebook <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
     variables <- setdiff(variables, by)
   }
 
-  fmt <- function(x) format(round(x, digits), nsmall = digits, trim = TRUE)
+  fmt <- function(x) format(round_half_up(x, digits), nsmall = digits, trim = TRUE)
 
   labels_lookup <- stats::setNames(
     trimws(gsub("<.*?>", "", dic$field_label)),

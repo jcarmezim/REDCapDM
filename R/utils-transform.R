@@ -63,7 +63,7 @@ recalculate <- function(data, dic, event_form = NULL, exclude_recalc = NULL){
       is_equal = purrr::map2_lgl(.data$calc, .data$recalc, function(x, y){
         if(!is.null(y)) {
           if(is.numeric(x) & is.numeric(y)){
-            identical(round(x, 3), round(y, 3))
+            identical(round_half_up(x, 3), round_half_up(y, 3))
           }else if(all(is.na(x)) & all(is.na(y))) {
             TRUE
           } else {
@@ -113,8 +113,8 @@ recalculate <- function(data, dic, event_form = NULL, exclude_recalc = NULL){
       no_trans = .data$N - .data$trans,
       no_equal = sum(!.data$is_equal, na.rm = TRUE),
     ) |>
-    dplyr::mutate(text1 = stringr::str_glue("{no_trans} ({round(no_trans*100/N, 2)}%)"),
-                  text2 = stringr::str_glue("{no_equal} ({round(no_equal*100/trans, 2)}%)")
+    dplyr::mutate(text1 = stringr::str_glue("{no_trans} ({round_half_up(no_trans*100/N, 2)}%)"),
+                  text2 = stringr::str_glue("{no_equal} ({round_half_up(no_equal*100/trans, 2)}%)")
     ) |>
     dplyr::select("Total calculated fields" = "N", "Non-transcribed fields" = "text1", "Recalculated different fields" = "text2")
 
