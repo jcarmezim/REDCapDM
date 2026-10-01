@@ -10,12 +10,14 @@
 #' @param dic A `data.frame` with the REDCap dictionary.
 #' @param event_form Only applicable for longitudinal projects (presence of events). Event-to-form mapping for longitudinal projects.
 #' @param variables Optional character vector of variable names to include. Defaults to every field in `dic` that is present as a column in `data`. Use this argument to target specific variables, or ones whose name no longer matches the dictionary (e.g. checkbox options already renamed by `rd_checkbox()`/`rd_transform()`).
-#' @param plot Logical. If `TRUE` (default), a `ggplot2` heatmap (longitudinal projects) or bar chart (non-longitudinal projects) is returned in the `plot` element. Requires the `ggplot2` package. If `FALSE`, only the numeric summary is returned.
+#' @param by Optional single variable name (present in `data`) used to stratify the missingness summary, e.g. a Data Access Group or treatment arm. Rows with a missing `by` value are excluded from the stratified summary. When `plot = TRUE`, this adds a `by`-faceted panel (longitudinal projects) or switches the bar chart to a Variable-by-`by` heatmap (non-longitudinal projects).
+#' @param plot Logical. If `TRUE` (default), a `ggplot2` heatmap (longitudinal projects, or non-longitudinal projects with `by`) or bar chart (non-longitudinal projects without `by`) is returned in the `plot` element. Requires the `ggplot2` package. If `FALSE`, only the numeric summary is returned.
+#' @param facet_ncol Optional integer; number of columns used to lay out the facets when both `event_form` and `by` are specified (passed to `ggplot2::facet_wrap()`'s `ncol`). Defaults to `ggplot2`'s automatic layout.
 #'
 #' @return A list with:
 #' \describe{
-#'   \item{summary}{A data frame with columns `Variable`, `Event` (`NA` for non-longitudinal projects), `N` (rows evaluated), `N_missing`, and `Pct_missing`.}
-#'   \item{plot}{A `ggplot2` object (heatmap of variables by event for longitudinal projects with `event_form`, otherwise a bar chart of variables), or `NULL` if `plot = FALSE` or `ggplot2` is not installed.}
+#'   \item{summary}{A data frame with columns `Variable`, `Event` (`NA` for non-longitudinal projects), `By` (`NA` if `by` is not specified), `N` (rows evaluated), `N_missing`, and `Pct_missing`.}
+#'   \item{plot}{A `ggplot2` object (heatmap of variables by event, optionally faceted by `by`, for longitudinal projects with `event_form`; a Variable-by-`by` heatmap for non-longitudinal projects with `by`; otherwise a bar chart of variables), or `NULL` if `plot = FALSE` or `ggplot2` is not installed.}
 #' }
 #'
 #' @examples
@@ -23,12 +25,16 @@
 #' res <- rd_missing_plot(covican, variables = c("age", "potassium", "resp_rate"))
 #' res$summary
 #' res$plot
+#'
+#' # Stratified by Data Access Group, to compare missingness across sites
+#' res_by_dag <- rd_missing_plot(covican, by = "redcap_data_access_group.factor")
+#' res_by_dag$plot
 #' }
 #'
 #' @export
 #' @importFrom rlang .data
 
-rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL, variables = NULL, plot = TRUE) {
+rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL, variables = NULL, by = NULL, plot = TRUE, facet_ncol = NULL) {
 
   # Handle potential overwriting when both `project` and other arguments are provided
   if (!is.null(project)) {
@@ -80,6 +86,29 @@ rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form 
     }
   }
 
+  # Resolve the `by` stratification variable (same conventions as rd_codebook()'s `by`)
+  if (!is.null(by)) {
+    if (length(by) != 1) {
+      stop("`by` must be a single variable name.", call. = FALSE)
+    }
+    if (!by %in% names(data)) {
+      stop(sprintf("The `by` variable '%s' was not found in the dataset.", by), call. = FALSE)
+    }
+
+    variables <- setdiff(variables, by)
+
+    by_vals <- data[[by]]
+    n_missing_by <- sum(is.na(by_vals))
+
+    if (n_missing_by == length(by_vals)) {
+      stop(sprintf("The `by` variable '%s' has no non-missing values to stratify on.", by), call. = FALSE)
+    }
+
+    if (n_missing_by > 0) {
+      warning(sprintf("%d row(s) with a missing `%s` value were excluded from the stratified missingness summary.", n_missing_by, by), call. = FALSE)
+    }
+  }
+
   # For each variable, find which events it is collected in (through its form), if event_form is available
   var_events <- NULL
   if (longitudinal & !is.null(event_form)) {
@@ -97,7 +126,7 @@ rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form 
     )
   }
 
-  # Compute missingness per variable (and per event, if applicable)
+  # Compute missingness per variable (and per event/`by`-stratum, if applicable)
   summary_df <- purrr::map_dfr(variables, function(v) {
     sub <- data
 
@@ -108,21 +137,34 @@ rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form 
       }
     }
 
-    if (!longitudinal) {
+    if (!is.null(by)) {
+      sub <- sub[!is.na(sub[[by]]), , drop = FALSE]
+    }
+
+    group_cols <- c(
+      if (longitudinal) ".event",
+      if (!is.null(by)) ".by_group"
+    )
+
+    if (length(group_cols) == 0) {
       n <- nrow(sub)
       n_missing <- sum(is.na(sub[[v]]))
 
       tibble::tibble(
         Variable = v,
         Event = NA_character_,
+        By = NA_character_,
         N = n,
         N_missing = n_missing,
         Pct_missing = if (n > 0) 100 * n_missing / n else NA_real_
       )
     } else {
       sub |>
-        dplyr::mutate(.event = as.character(.data[[event_col]])) |>
-        dplyr::group_by(.data$.event) |>
+        dplyr::mutate(
+          .event = if (longitudinal) as.character(.data[[event_col]]) else NA_character_,
+          .by_group = if (!is.null(by)) as.character(.data[[by]]) else NA_character_
+        ) |>
+        dplyr::group_by(dplyr::across(dplyr::all_of(group_cols))) |>
         dplyr::summarise(
           N = dplyr::n(),
           N_missing = sum(is.na(.data[[v]])),
@@ -130,7 +172,12 @@ rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form 
         ) |>
         dplyr::transmute(
           Variable = v,
-          Event = if (!is.null(event_labels)) unname(event_labels[.data$.event]) else .data$.event,
+          Event = if (longitudinal) {
+            if (!is.null(event_labels)) unname(event_labels[.data$.event]) else .data$.event
+          } else {
+            NA_character_
+          },
+          By = if (!is.null(by)) .data$.by_group else NA_character_,
           N = .data$N,
           N_missing = .data$N_missing,
           Pct_missing = ifelse(.data$N > 0, 100 * .data$N_missing / .data$N, NA_real_)
@@ -147,6 +194,9 @@ rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form 
     if (!requireNamespace("ggplot2", quietly = TRUE)) {
       warning("The `ggplot2` package is required to build the plot. Install it with `install.packages('ggplot2')`. Returning the numeric summary only.", call. = FALSE)
     } else if (longitudinal) {
+      # Variable order is computed across *all* rows (every event and, if
+      # present, every `by` stratum), so the ordering stays consistent across
+      # facets when `by` is specified.
       var_order <- summary_df |>
         dplyr::group_by(.data$Variable) |>
         dplyr::summarise(m = mean(.data$Pct_missing, na.rm = TRUE), .groups = "drop") |>
@@ -163,7 +213,42 @@ rd_missing_plot <- function(project = NULL, data = NULL, dic = NULL, event_form 
           low = "#cde2fb", high = "#0d366b",
           limits = c(0, 100)
         ) +
-        ggplot2::labs(title = "Missing data by variable and event", x = NULL, y = NULL) +
+        ggplot2::labs(
+          title = if (!is.null(by)) sprintf("Missing data by variable and event, by %s", by) else "Missing data by variable and event",
+          x = NULL, y = NULL
+        ) +
+        ggplot2::theme_minimal(base_size = 11) +
+        ggplot2::theme(
+          panel.grid = ggplot2::element_blank(),
+          axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, color = "#52514e"),
+          axis.text.y = ggplot2::element_text(color = "#52514e"),
+          plot.title = ggplot2::element_text(color = "#0b0b0b")
+        )
+
+      if (!is.null(by)) {
+        gg <- gg + ggplot2::facet_wrap(~ .data$By, ncol = facet_ncol)
+      }
+    } else if (!is.null(by)) {
+      # Non-longitudinal project stratified by `by`: a Variable x `by` heatmap
+      # takes the place of the simple bar chart (same ordering/color-scale
+      # conventions as the longitudinal heatmap above).
+      var_order <- summary_df |>
+        dplyr::group_by(.data$Variable) |>
+        dplyr::summarise(m = mean(.data$Pct_missing, na.rm = TRUE), .groups = "drop") |>
+        dplyr::arrange(.data$m) |>
+        dplyr::pull(.data$Variable)
+
+      summary_df_plot <- summary_df
+      summary_df_plot$Variable <- factor(summary_df_plot$Variable, levels = var_order)
+
+      gg <- ggplot2::ggplot(summary_df_plot, ggplot2::aes(x = .data$By, y = .data$Variable, fill = .data$Pct_missing)) +
+        ggplot2::geom_tile(color = "#fcfcfb", linewidth = 0.5) +
+        ggplot2::scale_fill_gradient(
+          name = "% missing",
+          low = "#cde2fb", high = "#0d366b",
+          limits = c(0, 100)
+        ) +
+        ggplot2::labs(title = sprintf("Missing data by variable and %s", by), x = NULL, y = NULL) +
         ggplot2::theme_minimal(base_size = 11) +
         ggplot2::theme(
           panel.grid = ggplot2::element_blank(),

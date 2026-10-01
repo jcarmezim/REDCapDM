@@ -123,3 +123,47 @@ test_that("rd_codebook defaults to dictionary fields present in the data", {
   res <- rd_codebook(data = make_data(), dic = make_dic())
   expect_setequal(unique(res$table$Variable), c("age", "sex", "visit_date"))
 })
+
+test_that("rd_codebook does not add a P value column by default", {
+  res <- rd_codebook(data = make_data(), dic = make_dic(), variables = "age", by = "arm")
+  expect_false("P value" %in% names(res$table))
+})
+
+test_that("rd_codebook errors when add_pvalue = TRUE but `by` is not specified", {
+  expect_error(
+    rd_codebook(data = make_data(), dic = make_dic(), variables = "age", add_pvalue = TRUE),
+    "requires `by`"
+  )
+})
+
+test_that("rd_codebook adds a P value column for numeric variables when add_pvalue = TRUE", {
+  res <- rd_codebook(data = make_data(), dic = make_dic(), variables = "age", by = "arm", add_pvalue = TRUE)
+  tab <- res$table
+
+  expect_true("P value" %in% names(tab))
+
+  pv <- tab$`P value`[tab$Level == "Mean (SD)"]
+  expect_false(pv %in% c("", "-"))
+  expect_equal(tab$`P value`[tab$Level == "Missing"], "")
+})
+
+test_that("rd_codebook adds a P value column for categorical variables when add_pvalue = TRUE", {
+  res <- rd_codebook(data = make_data(), dic = make_dic(), variables = "sex", by = "arm", add_pvalue = TRUE)
+  tab <- res$table
+
+  pv <- tab$`P value`[tab$Level == "Female"]
+  expect_false(pv %in% c("", "-"))
+  # The P value is only shown once, on the variable's first row
+  expect_equal(tab$`P value`[tab$Level != "Female"], rep("", sum(tab$Level != "Female")))
+})
+
+test_that("rd_codebook warns and returns '-' when `by` has fewer than two levels and add_pvalue = TRUE", {
+  d <- make_data()
+  d$grp <- "only"
+
+  expect_warning(
+    res <- rd_codebook(data = d, dic = make_dic(), variables = "age", by = "grp", add_pvalue = TRUE),
+    "fewer than two levels"
+  )
+  expect_equal(res$table$`P value`[res$table$Level == "Mean (SD)"], "-")
+})

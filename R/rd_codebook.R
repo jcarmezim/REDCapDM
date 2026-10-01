@@ -13,11 +13,14 @@
 #' @param by Optional single variable name (present in `data`) used to stratify the table into columns. An additional `"Overall"` column is always included.
 #' @param numeric_summary One of `"mean_sd"` (default), `"median_iqr"`, or `"both"`, controlling how numeric variables are summarized.
 #' @param digits Number of decimal digits used when rounding numeric summaries and percentages. Default `1`.
+#' @param add_pvalue Logical; if `TRUE`, adds a `"P value"` column testing whether each variable differs across the levels of `by` (requires `by` to be specified). Numeric/date variables use a t-test/Welch ANOVA when `numeric_summary = "mean_sd"`, or a Wilcoxon/Kruskal-Wallis test otherwise (2 vs. >2 levels of `by`, respectively); categorical variables use a chi-squared test. Rows with a missing value in the variable or in `by` are excluded from that variable's test. Default `FALSE`.
 #' @param report_title Optional single string used as the caption for the HTML summary table. Defaults to `"Descriptive summary"`.
 #' @param return_viewer Logical; if `TRUE` (default) an HTML table (knitr/kable + kableExtra) is produced and returned in the `results` element of the returned list. If `FALSE`, no HTML viewer is produced (useful for non-interactive runs).
 #'
 #' @details
-#' This function is intentionally lightweight (it only relies on packages already used elsewhere in **REDCapDM**) rather than depending on a dedicated summary-table package. For more advanced tabulation needs (e.g. p-values, custom statistical tests), consider passing the transformed data/dictionary labels into a package such as `gtsummary`.
+#' This function is intentionally lightweight (it only relies on packages already used elsewhere in **REDCapDM**) rather than depending on a dedicated summary-table package. For more advanced tabulation needs (e.g. adjusted models, custom statistical tests), consider passing the transformed data/dictionary labels into a package such as `gtsummary`.
+#'
+#' `add_pvalue` is deliberately simple (one default test per variable type, no multiplicity adjustment, no stratification by more than one `by` variable) and is meant for quick exploratory comparisons, not for a pre-specified primary analysis.
 #'
 #' Every variable is expected to already carry the class appropriate to how it should be summarized (numeric, `Date`/`POSIXct`, or factor/character) — i.e. this function is meant to be run **after** [rd_transform()] (or at least [rd_factor()] and [rd_dates()]) so that categorical fields are proper factors rather than raw numeric codes.
 #'
@@ -25,7 +28,7 @@
 #'
 #' @return A list with:
 #' \describe{
-#'   \item{table}{A data frame with columns `Variable`, `Label`, `Level`, `Overall`, and (if `by` is specified) one additional column per level of `by`.}
+#'   \item{table}{A data frame with columns `Variable`, `Label`, `Level`, `Overall`, (if `by` is specified) one additional column per level of `by`, and (if `add_pvalue = TRUE`) a `"P value"` column shown on each variable's first row.}
 #'   \item{results}{If `return_viewer = TRUE`, an HTML `knitr::kable` (styled with `kableExtra`). If `return_viewer = FALSE`, this is `NULL`.}
 #' }
 #'
@@ -37,7 +40,8 @@
 #'   data = trans$data,
 #'   dic = trans$dictionary,
 #'   variables = c("age", "copd", "dm"),
-#'   by = "redcap_data_access_group.factor"
+#'   by = "redcap_data_access_group.factor",
+#'   add_pvalue = TRUE
 #' )
 #' res$table
 #' }
@@ -45,9 +49,13 @@
 #' @export
 #' @importFrom rlang .data
 
-rd_codebook <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL, variables = NULL, by = NULL, numeric_summary = "mean_sd", digits = 1, report_title = NULL, return_viewer = TRUE) {
+rd_codebook <- function(project = NULL, data = NULL, dic = NULL, event_form = NULL, variables = NULL, by = NULL, numeric_summary = "mean_sd", digits = 1, add_pvalue = FALSE, report_title = NULL, return_viewer = TRUE) {
 
   numeric_summary <- match.arg(numeric_summary, c("mean_sd", "median_iqr", "both"))
+
+  if (isTRUE(add_pvalue) && is.null(by)) {
+    stop("`add_pvalue = TRUE` requires `by` to be specified.", call. = FALSE)
+  }
 
   # Handle potential overwriting when both `project` and other arguments are provided
   if (!is.null(project)) {
@@ -170,6 +178,46 @@ rd_codebook <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
     list(rows = unname(out), missing = sprintf("%d (%s%%)", n_missing, fmt(missing_pct)))
   }
 
+  # Default, single statistical test per variable `kind` (used only when
+  # `add_pvalue = TRUE`): t-test/Welch ANOVA for "mean_sd", Wilcoxon/Kruskal-Wallis
+  # otherwise, chi-squared for categorical variables. Deliberately simple (see
+  # @details) and never errors the whole table: any failure (e.g. a constant
+  # variable, or fewer than 2 non-missing values in some group) just yields "-".
+  compute_pvalue <- function(x, grp, kind) {
+    keep <- !is.na(x) & !is.na(grp)
+    x <- x[keep]
+    grp <- factor(grp[keep])
+
+    if (nlevels(grp) < 2 || length(x) < 2) {
+      return("-")
+    }
+
+    use_parametric <- identical(numeric_summary, "mean_sd")
+
+    if (!kind %in% c("numeric", "date") && length(unique(x)) < 2) {
+      return("-")
+    }
+
+    p <- tryCatch(
+      suppressWarnings(
+        if (kind %in% c("numeric", "date")) {
+          if (kind == "date") x <- as.numeric(x)
+
+          if (nlevels(grp) == 2) {
+            if (use_parametric) stats::t.test(x ~ grp)$p.value else stats::wilcox.test(x ~ grp)$p.value
+          } else {
+            if (use_parametric) stats::oneway.test(x ~ grp)$p.value else stats::kruskal.test(x ~ grp)$p.value
+          }
+        } else {
+          stats::chisq.test(table(x, grp))$p.value
+        }
+      ),
+      error = function(e) NA_real_
+    )
+
+    if (length(p) != 1 || is.na(p)) "-" else stats::format.pval(p, digits = 2, eps = 0.001)
+  }
+
   # Build the list of groups to summarize: "Overall" plus one per level of `by` (if provided)
   if (is.null(by)) {
     groups <- list(Overall = data)
@@ -179,6 +227,10 @@ rd_codebook <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
 
     if (length(by_levels) == 0) {
       stop(sprintf("The `by` variable '%s' has no non-missing values to stratify on.", by), call. = FALSE)
+    }
+
+    if (isTRUE(add_pvalue) && length(by_levels) < 2) {
+      warning(sprintf("The `by` variable '%s' has fewer than two levels; no p-values can be computed.", by), call. = FALSE)
     }
 
     grp_list <- lapply(by_levels, function(lvl) data[!is.na(by_vals) & as.character(by_vals) == lvl, , drop = FALSE])
@@ -221,7 +273,12 @@ rd_codebook <- function(project = NULL, data = NULL, dic = NULL, event_form = NU
     out$Variable <- var
     out$Label <- get_label(var)
 
-    out[, c("Variable", "Label", "Level", names(groups))]
+    if (isTRUE(add_pvalue)) {
+      out$`P value` <- ""
+      out$`P value`[1] <- compute_pvalue(x_full, by_vals, kind)
+    }
+
+    out[, c("Variable", "Label", "Level", names(groups), if (isTRUE(add_pvalue)) "P value")]
   })
 
   table_long <- as.data.frame(dplyr::bind_rows(blocks))

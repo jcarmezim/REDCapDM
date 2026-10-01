@@ -10,7 +10,9 @@ rd_missing_plot(
   dic = NULL,
   event_form = NULL,
   variables = NULL,
-  plot = TRUE
+  by = NULL,
+  plot = TRUE,
+  facet_ncol = NULL
 )
 }
 \arguments{
@@ -24,13 +26,17 @@ rd_missing_plot(
 
 \item{variables}{Optional character vector of variable names to include. Defaults to every field in \code{dic} that is present as a column in \code{data}. Use this argument to target specific variables, or ones whose name no longer matches the dictionary (e.g. checkbox options already renamed by \code{rd_checkbox()}/\code{rd_transform()}).}
 
-\item{plot}{Logical. If \code{TRUE} (default), a \code{ggplot2} heatmap (longitudinal projects) or bar chart (non-longitudinal projects) is returned in the \code{plot} element. Requires the \code{ggplot2} package. If \code{FALSE}, only the numeric summary is returned.}
+\item{by}{Optional single variable name (present in \code{data}) used to stratify the missingness summary, e.g. a Data Access Group or treatment arm. Rows with a missing \code{by} value are excluded from the stratified summary. When \code{plot = TRUE}, this adds a \code{by}-faceted panel (longitudinal projects) or switches the bar chart to a Variable-by-\code{by} heatmap (non-longitudinal projects).}
+
+\item{plot}{Logical. If \code{TRUE} (default), a \code{ggplot2} heatmap (longitudinal projects, or non-longitudinal projects with \code{by}) or bar chart (non-longitudinal projects without \code{by}) is returned in the \code{plot} element. Requires the \code{ggplot2} package. If \code{FALSE}, only the numeric summary is returned.}
+
+\item{facet_ncol}{Optional integer; number of columns used to lay out the facets when both \code{event_form} and \code{by} are specified (passed to \code{ggplot2::facet_wrap()}'s \code{ncol}). Defaults to \code{ggplot2}'s automatic layout.}
 }
 \value{
 A list with:
 \describe{
-\item{summary}{A data frame with columns \code{Variable}, \code{Event} (\code{NA} for non-longitudinal projects), \code{N} (rows evaluated), \code{N_missing}, and \code{Pct_missing}.}
-\item{plot}{A \code{ggplot2} object (heatmap of variables by event for longitudinal projects with \code{event_form}, otherwise a bar chart of variables), or \code{NULL} if \code{plot = FALSE} or \code{ggplot2} is not installed.}
+\item{summary}{A data frame with columns \code{Variable}, \code{Event} (\code{NA} for non-longitudinal projects), \code{By} (\code{NA} if \code{by} is not specified), \code{N} (rows evaluated), \code{N_missing}, and \code{Pct_missing}.}
+\item{plot}{A \code{ggplot2} object (heatmap of variables by event, optionally faceted by \code{by}, for longitudinal projects with \code{event_form}; a Variable-by-\code{by} heatmap for non-longitudinal projects with \code{by}; otherwise a bar chart of variables), or \code{NULL} if \code{plot = FALSE} or \code{ggplot2} is not installed.}
 }
 }
 \description{
@@ -43,6 +49,10 @@ Computes and (optionally) plots the percentage of missing values for a set of va
 res <- rd_missing_plot(covican, variables = c("age", "potassium", "resp_rate"))
 res$summary
 res$plot
+
+# Stratified by Data Access Group, to compare missingness across sites
+res_by_dag <- rd_missing_plot(covican, by = "redcap_data_access_group.factor")
+res_by_dag$plot
 }
 
 }

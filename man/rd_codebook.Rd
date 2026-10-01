@@ -13,6 +13,7 @@ rd_codebook(
   by = NULL,
   numeric_summary = "mean_sd",
   digits = 1,
+  add_pvalue = FALSE,
   report_title = NULL,
   return_viewer = TRUE
 )
@@ -34,6 +35,8 @@ rd_codebook(
 
 \item{digits}{Number of decimal digits used when rounding numeric summaries and percentages. Default \code{1}.}
 
+\item{add_pvalue}{Logical; if \code{TRUE}, adds a \code{"P value"} column testing whether each variable differs across the levels of \code{by} (requires \code{by} to be specified). Numeric/date variables use a t-test/Welch ANOVA when \code{numeric_summary = "mean_sd"}, or a Wilcoxon/Kruskal-Wallis test otherwise (2 vs. >2 levels of \code{by}, respectively); categorical variables use a chi-squared test. Rows with a missing value in the variable or in \code{by} are excluded from that variable's test. Default \code{FALSE}.}
+
 \item{report_title}{Optional single string used as the caption for the HTML summary table. Defaults to \code{"Descriptive summary"}.}
 
 \item{return_viewer}{Logical; if \code{TRUE} (default) an HTML table (knitr/kable + kableExtra) is produced and returned in the \code{results} element of the returned list. If \code{FALSE}, no HTML viewer is produced (useful for non-interactive runs).}
@@ -41,7 +44,7 @@ rd_codebook(
 \value{
 A list with:
 \describe{
-\item{table}{A data frame with columns \code{Variable}, \code{Label}, \code{Level}, \code{Overall}, and (if \code{by} is specified) one additional column per level of \code{by}.}
+\item{table}{A data frame with columns \code{Variable}, \code{Label}, \code{Level}, \code{Overall}, (if \code{by} is specified) one additional column per level of \code{by}, and (if \code{add_pvalue = TRUE}) a \code{"P value"} column shown on each variable's first row.}
 \item{results}{If \code{return_viewer = TRUE}, an HTML \code{knitr::kable} (styled with \code{kableExtra}). If \code{return_viewer = FALSE}, this is \code{NULL}.}
 }
 }
@@ -51,7 +54,9 @@ A list with:
 Builds a descriptive summary table ("Table 1") for a set of variables in a (typically already transformed, see \code{\link[=rd_transform]{rd_transform()}}) REDCap dataset, reusing the variable labels already stored in the dictionary/data. Numeric variables are summarized with mean (SD) and/or median \verb{[Q1, Q3]}, date variables with their range, and factor/character variables with counts and percentages per level. The table can optionally be stratified by a grouping variable (e.g. treatment arm, event, or Data Access Group), with an additional "Overall" column.
 }
 \details{
-This function is intentionally lightweight (it only relies on packages already used elsewhere in \strong{REDCapDM}) rather than depending on a dedicated summary-table package. For more advanced tabulation needs (e.g. p-values, custom statistical tests), consider passing the transformed data/dictionary labels into a package such as \code{gtsummary}.
+This function is intentionally lightweight (it only relies on packages already used elsewhere in \strong{REDCapDM}) rather than depending on a dedicated summary-table package. For more advanced tabulation needs (e.g. adjusted models, custom statistical tests), consider passing the transformed data/dictionary labels into a package such as \code{gtsummary}.
+
+\code{add_pvalue} is deliberately simple (one default test per variable type, no multiplicity adjustment, no stratification by more than one \code{by} variable) and is meant for quick exploratory comparisons, not for a pre-specified primary analysis.
 
 Every variable is expected to already carry the class appropriate to how it should be summarized (numeric, \code{Date}/\code{POSIXct}, or factor/character) — i.e. this function is meant to be run \strong{after} \code{\link[=rd_transform]{rd_transform()}} (or at least \code{\link[=rd_factor]{rd_factor()}} and \code{\link[=rd_dates]{rd_dates()}}) so that categorical fields are proper factors rather than raw numeric codes.
 
@@ -65,7 +70,8 @@ res <- rd_codebook(
   data = trans$data,
   dic = trans$dictionary,
   variables = c("age", "copd", "dm"),
-  by = "redcap_data_access_group.factor"
+  by = "redcap_data_access_group.factor",
+  add_pvalue = TRUE
 )
 res$table
 }

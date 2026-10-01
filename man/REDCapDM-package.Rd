@@ -41,10 +41,12 @@ Core Functions:
 \item \code{rd_event}: Detects missing events in longitudinal datasets.
 \item \code{check_queries}: Compares historical and current query reports to track changes and additions.
 \item \code{check_dictionary}: Compares two versions of a REDCap data dictionary and classifies each field as added, removed, modified, or unchanged.
+\item \code{rd_diff}: Compares two snapshots of a REDCap dataset (e.g. two API pulls of the same study) at the record level.
 \item \code{rd_write_queries}: Pushes query annotations back into a REDCap project field.
 \item \code{run_query_app}: A Shiny app to browse, filter, and annotate a query report interactively.
-\item \code{rd_codebook}: Generates a descriptive summary table ("Table 1") from a transformed dataset.
-\item \code{rd_missing_plot}: Summarizes and plots the percentage of missing values per variable.
+\item \code{rd_codebook}: Generates a descriptive summary table ("Table 1") from a transformed dataset, optionally with p-values across strata.
+\item \code{rd_missing_plot}: Summarizes and plots the percentage of missing values per variable, optionally stratified by site/arm.
+\item \code{rd_enrollment_plot}: Summarizes and plots (cumulative) enrollment over time, optionally by site/arm.
 \item \code{rd_export}: Exports a summary report of identified queries to an Excel (.xlsx) file.
 }
 }
