@@ -1,0 +1,607 @@
+---
+title: "REDCapDM"
+subtitle: "Gestión de datos de REDCap en R"
+author: "João Carmezim"
+date: today
+format:
+  revealjs:
+    theme: simple
+    slide-number: true
+    progress: true
+    transition: fade
+    highlight-style: github
+    toc: false
+    footer: "REDCapDM · bruigtp.github.io/REDCapDM"
+    chalkboard: true
+---
+
+# Agenda {background-color="#1d3557"}
+
+::: {.incremental}
+- ¿Qué es REDCap / REDCapDM? — **3 min**
+- Instalación y dataset de ejemplo — **3 min**
+- Bloque 1 · Lectura de datos — **3 min**
+- Bloque 2 · Procesado de datos — **13 min**
+- Bloque 3 · Identificación de queries — **13 min**
+- Resumen / cheat-sheet — **2 min**
+- 🚧 Próximas funciones *(hueco reservado)* — **5 min**
+- Recursos y cierre — **1 min**
+:::
+
+::: {.notes}
+Total ≈ 44 min, dejando margen hasta los 45. El bloque de "Próximas funciones" está deliberadamente vacío: rellenarlo cuando las nuevas funciones estén listas, sin tener que reestructurar el resto del guion.
+:::
+
+---
+
+## ¿Qué es REDCap?
+
+- **REDCap** (Research Electronic Data CAPture): aplicación web de Vanderbilt University para crear y gestionar encuestas y bases de datos online.
+- Incluye una **API** que permite conectar aplicaciones externas para leer o modificar datos/configuración del proyecto de forma programática.
+- Es el estándar de facto en investigación clínica y académica para la captura de datos de estudios.
+
+## ¿Por qué REDCapDM?
+
+> Un paquete de R para gestionar los datos exportados de un proyecto REDCap, de principio a fin.
+
+- Importa datos (ficheros exportados **o** API).
+- Transforma y limpia los datos según el diccionario y la lógica del proyecto.
+- Genera informes de **queries** (missing, outliers, inconsistencias) y permite hacer seguimiento de su resolución entre versiones.
+- Publicado en *BMC Medical Research Methodology* (2024).
+
+::: {.notes}
+Carmezim J, Satorra P, Peñafiel J, García E, Pallarès N, Santos N, Tebé C (2024). "REDCapDM: An R package with a set of data management tools for a REDCap project." BMC Medical Research Methodology, 24(1), 55.
+:::
+
+## Instalación
+
+**CRAN (release):**
+```r
+install.packages("REDCapDM")
+```
+
+**GitHub (development):**
+```r
+install.packages("remotes")
+remotes::install_github("bruigtp/REDCapDM")
+```
+
+## El dataset de ejemplo: `covican`
+
+Estudio de cohorte internacional y multicéntrico de pacientes oncológicos con COVID-19. Viene incluido en el paquete.
+
+```r
+library(REDCapDM)
+data(covican)
+str(covican, max.level = 1)
+```
+
+`covican` es una **lista de 3 elementos** — la misma estructura que devuelve `redcap_data()`:
+
+1. `data` — el dataset.
+2. `dictionary` — el diccionario del proyecto (metadatos de cada campo).
+3. `event_form` — correspondencia evento ↔ formulario (proyectos longitudinales).
+
+## Mapa del paquete
+
+El flujo de trabajo siempre tiene **tres bloques**:
+
+```{mermaid}
+flowchart LR
+    A["1. Leer\nredcap_data()"] --> B["2. Procesar\nrd_transform() y afines"]
+    B --> C["3. Queries\nrd_query(), rd_event()..."]
+```
+
+Todas las funciones son **opcionales** y se usan a discreción — no hay un único camino correcto.
+
+# Bloque 1 · Lectura de datos {background-color="#1d3557"}
+
+## `redcap_data()` — desde ficheros
+
+```r
+dataset <- redcap_data(
+  data_path = "C:/Users/username/example.r",
+  dic_path  = "C:/Users/username/example_dictionary.csv"
+)
+```
+
+- El `.R` y el `.csv` exportados deben estar **en el mismo directorio**.
+- Si el proyecto es longitudinal, añade el mapeo evento↔formulario con `event_path` (se descarga desde *Project Setup → Designate Instruments for My Events*).
+
+```r
+dataset <- redcap_data(
+  data_path  = "example.r",
+  dic_path   = "example_dictionary.csv",
+  event_path = "events.csv"
+)
+```
+
+::: {.callout-warning}
+Sin `event_path` en un proyecto longitudinal, algunos pasos del procesado no se podrán ejecutar.
+:::
+
+## `redcap_data()` — vía API
+
+```r
+dataset_api <- redcap_data(
+  uri   = "https://redcap.idibell.cat/api/",
+  token = "55E5C3D1E83213ADA2182A4BFDEA"
+)
+```
+
+- No hace falta `event_path`: si el proyecto es longitudinal, el mapeo se descarga automáticamente.
+- Devuelve siempre la misma lista de 3 elementos: `data`, `dictionary`, `event_form`.
+
+::: {.callout-important}
+El token da acceso privilegiado al proyecto. **Nunca lo compartas ni lo subas a un repositorio.**
+:::
+
+# Bloque 2 · Procesado de datos {background-color="#1d3557"}
+
+## El pipeline completo
+
+```r
+data |>
+  rd_delete_vars(delete_pattern = c("_complete", "_timestamp")) |>
+  rd_dates() |>
+  rd_recalculate() |>
+  rd_checkbox() |>
+  rd_factor() |>
+  rd_dictionary() |>
+  rd_split(by = "event")   # o "form" si no es longitudinal
+```
+
+Para `covican` (sin variables que borrar, fechas ya correctas):
+
+```r
+covican_transformed <- covican |>
+  rd_recalculate() |>
+  rd_checkbox() |>
+  rd_factor() |>
+  rd_dictionary() |>
+  rd_split(by = "event")
+
+covican_transformed$results
+```
+
+## `rd_delete_vars()`
+
+Elimina variables no deseadas del dataset **y** del diccionario — típicamente los campos automáticos `*_complete` / `*_timestamp`.
+
+```r
+# Por nombre exacto
+covican |> rd_delete_vars(vars = c("potassium", "leuk_lymph"))
+
+# Por patrón (regex)
+covican |> rd_delete_vars(pattern = c("_complete$", "_timestamp$"))
+```
+
+Si una variable tiene versión `.factor`, también se elimina.
+
+## `rd_dates()`
+
+REDCap a veces exporta fechas como texto. Esta función detecta en el diccionario qué campos son `date`/`datetime` y los convierte a `Date` / `POSIXct`.
+
+```r
+covican_dates <- covican |> rd_dates()
+```
+
+```r
+class(covican$data$d_birth)        # "character" (simulado)
+covican_dates <- covican |> rd_dates()
+class(covican_dates$data$d_birth)  # "Date"
+```
+
+## `rd_recalculate()`
+
+Traduce la lógica de los campos calculados de REDCap a R, **recalcula** los valores y los compara con los que ya había en REDCap.
+
+```r
+covican_recalc <- covican |> rd_recalculate()
+covican_recalc$results
+```
+
+- Informe con nº de campos calculados, cuántos se tradujeron, y cuántos difieren.
+- Añade una variable `<campo>_recalc` junto a la original cuando hay diferencias.
+
+```r
+# Excluir campos complejos para acelerar el proceso
+covican |> rd_recalculate(exclude = c("screening_fail_crit", "resp_rate"))
+```
+
+## `rd_checkbox()`
+
+Convierte `"Unchecked"/"Checked"` en etiquetas elegidas por el usuario y renombra `varname___code` a nombres legibles según el texto de la opción.
+
+```r
+cb <- covican |> rd_checkbox()
+# type_underlying_disease___0  ->  type_underlying_disease_haematological_cancer
+# type_underlying_disease___1  ->  type_underlying_disease_solid_tumour
+```
+
+```r
+# Mantener el formato REDCap original
+covican |> rd_checkbox(checkbox_names = FALSE)
+
+# Etiquetas personalizadas
+covican |> rd_checkbox(checkbox_labels = c("Absent", "Present"))
+```
+
+## `rd_checkbox()` — lógica de rama (`na_logic`)
+
+Si un checkbox tiene lógica de rama, por defecto no se toca ningún valor. Se controla con `na_logic`:
+
+| Valor | Comportamiento |
+|---|---|
+| `"none"` (default) | No se pone `NA` según la lógica |
+| `"missing"` | `NA` solo si la lógica evalúa a `NA` |
+| `"eval"` | `NA` si la lógica no se cumple (o es missing) |
+
+```r
+covican |> rd_checkbox(na_logic = "eval")
+```
+
+## `rd_factor()`
+
+Sustituye cada variable categórica numérica por su versión `.factor` (ya generada por REDCap).
+
+```r
+factored <- covican |> rd_factor()
+str(factored$data$available_analytics)   # ahora es factor
+```
+
+```r
+# Conservar algunas variables en su forma original
+covican |> rd_factor(exclude = c("available_analytics", "urine_culture"))
+```
+
+::: {.callout-note}
+Excluye automáticamente `redcap_event_name`, `redcap_repeat_instrument` y `redcap_data_access_group` para no romper los mapeos del proyecto.
+:::
+
+## `rd_dictionary()`
+
+El diccionario de REDCap guarda metadatos, lógica de rama y cálculos **en lógica REDCap**. Esta función la traduce a R y mantiene el diccionario sincronizado con los datos ya limpios.
+
+```r
+dict_result <- covican |>
+  rd_factor() |>
+  rd_checkbox() |>
+  rd_dictionary()
+```
+
+- Actualiza la lógica de rama para que use etiquetas de factor, no códigos numéricos.
+- Reporta qué campos **no** se han podido convertir.
+
+## `rd_split()` — por formulario o por evento
+
+```r
+# Por formulario
+forms_data <- covican |> rd_split(by = "form")
+
+# Formato ancho si hay entradas repetidas
+covican |> rd_split(by = "form", wide = TRUE)
+
+# Por evento (longitudinal)
+events_data <- covican |> rd_split(by = "event")
+
+# Solo un formulario/evento concreto
+baseline_data <- covican |> rd_split(by = "form", which = "demographics")
+```
+
+## `rd_insert_na()` *(bonus)*
+
+Fuerza a `NA` los valores de una variable cuando se cumple una condición lógica — útil, por ejemplo, para checkboxes sin lógica de rama definida.
+
+```r
+cb <- covican |> rd_checkbox()
+
+covican |>
+  rd_checkbox() |>
+  rd_insert_na(
+    vars   = "type_underlying_disease_haematological_cancer",
+    filter = "age < 65"
+  )
+```
+
+::: {.callout-note}
+La variable a transformar y la del filtro deben compartir evento; si no tienen ninguno en común, da error.
+:::
+
+## `rd_rlogic()` *(bonus)*
+
+Traduce **una** expresión de lógica REDCap a lógica evaluable en R. Es el motor interno que usan `rd_dictionary()`, `rd_recalculate()`, etc.
+
+```r
+logic_trans <- covican |>
+  rd_rlogic(
+    logic = "if([exc_1]='1' or [inc_1]='0' or [inc_2]='0' or [inc_3]='0',1,0)",
+    var   = "screening_fail_crit"
+  )
+
+str(logic_trans)
+```
+
+Devuelve tanto la lógica traducida como el resultado de evaluarla.
+
+## `rd_transform()` — todo en un paso
+
+```r
+covican_transformed <- rd_transform(covican)
+covican_transformed$results
+```
+
+Equivale a encadenar todas las funciones anteriores, con sus argumentos disponibles como parámetros de `rd_transform()`.
+
+::: {.callout-tip}
+Para explorar paso a paso, usa las funciones individuales. Para producción, `rd_transform()` es más rápido de escribir y más fácil de mantener.
+:::
+
+# Bloque 3 · Identificación de queries {background-color="#1d3557"}
+
+## `rd_query()` — la idea
+
+Genera queries aplicando una **expresión** a una o varias variables: missing, fuera de rango, o cualquier condición lógica.
+
+```r
+example <- rd_query(covican_transformed,
+                    variables  = "copd",
+                    expression = "is.na(x)")
+```
+
+Devuelve una lista con:
+
+- `queries`: data frame con record_id, DAG, evento, instrumento, variable y descripción de cada query.
+- `results`: tabla-resumen con el nº de queries por variable/evento.
+
+## `rd_query()` — missing values
+
+```r
+example <- rd_query(covican_transformed,
+                    variables  = c("copd", "age"),
+                    expression = c("is.na(x)", "is.na(x)"),
+                    event      = "baseline_visit_arm_1")
+example$results
+```
+
+**Resultado:** 6 valores missing en `copd`, 5 en `age`.
+
+::: {.notes}
+Si el proyecto es longitudinal, siempre especificar `event`; si no, puede sobreestimar el missing (lo vemos dos slides más adelante).
+:::
+
+## `rd_query()` — missing + lógica de rama
+
+Cuando una variable tiene lógica de rama, los missing "esperados" (condición no cumplida) **no** deberían contar como query.
+
+```r
+example <- rd_query(covican_transformed,
+                    variables  = "potassium",
+                    expression = "is.na(x)",
+                    event      = "baseline_visit_arm_1")
+```
+
+**31 missing** — pero la lógica de rama usa una *smart variable* (`[current-instance]`) que no se puede traducir automáticamente ⚠️.
+
+**Solución:** usar `filter` para aplicar la condición manualmente:
+
+```r
+rd_query(covican_transformed,
+         variables  = "potassium",
+         expression = "is.na(x)",
+         event      = "baseline_visit_arm_1",
+         filter     = "available_analytics=='Yes'")
+```
+
+**21 missing** — los otros 10 no debían contarse.
+
+## `rd_query()` — expresiones libres
+
+No solo missing: cualquier condición lógica sobre `x`.
+
+```r
+# Outliers / rangos
+rd_query(covican_transformed, variables = "age",
+         expression = "x > 70", event = "baseline_visit_arm_1")
+
+# Varias variables, una expresión cada una
+rd_query(covican_transformed,
+         variables  = c("age", "copd"),
+         expression = c("x > 70", "x == 'Yes'"),
+         event      = "baseline_visit_arm_1")
+
+# Expresión compuesta
+rd_query(covican_transformed, variables = "age",
+         expression = "(x > 70 & x < 80) | is.na(x)",
+         event      = "baseline_visit_arm_1")
+```
+
+## `rd_query()` — casos especiales
+
+**Una expresión para todas las variables:**
+
+```r
+rd_query(covican_transformed,
+         variables  = c("copd", "age", "dm"),
+         expression = "is.na(x)",
+         event      = "baseline_visit_arm_1")
+```
+
+**Sin especificar `event` (longitudinal):**
+
+- *Con* `event_form`: detecta automáticamente los eventos de cada variable — mismo resultado que especificarlo.
+- *Sin* `event_form`: usa **todos** los eventos del dataset → sobreestimación. Ejemplo real: `copd` solo existe en *baseline*, pero sin `event_form` aparecen **152 missing adicionales** en *follow-up*.
+
+## `rd_query()` — opciones para personalizar el output
+
+```r
+rd_query(covican_transformed,
+         variables       = "copd",
+         variables_names = "Chronic obstructive pulmonary disease (Yes/No)",
+         query_name      = "COPD is a missing value.",
+         instrument      = "Admission",
+         event           = "baseline_visit_arm_1")
+```
+
+- `variables_names` / `query_name` / `instrument`: controlan cómo se describe cada query.
+- `report_title`: cambia el título del resumen (por defecto *"Report of queries"*).
+- `report_zeros`: incluye en el resumen también las variables con **cero** queries.
+
+## `rd_query()` — negate, addTo, by_dag
+
+```r
+# negate: invierte la condición -> no-missing en lugar de missing
+rd_query(covican_transformed, variables = "copd",
+         expression = "is.na(x)", negate = TRUE,
+         event = "baseline_visit_arm_1")
+# -> 184 valores NO missing en copd
+
+# addTo: acumula queries de distintas llamadas en un mismo objeto
+rd_query(covican_transformed, variables = "age",
+         expression = "is.na(x)", event = "baseline_visit_arm_1",
+         addTo = example)
+
+# by_dag: desglosa el resumen por Data Access Group
+rd_query(covican_transformed, variables = c("copd", "age"),
+         expression = c("is.na(x)", "x > 60"),
+         event = "baseline_visit_arm_1", by_dag = TRUE)
+# -> Hospital 2: 3 casos de age > 60, 2 missing en copd
+```
+
+## `rd_query()` — `link`: ir directo a REDCap
+
+```r
+rd_query(covican_transformed,
+         variables  = "age",
+         expression = "x > 89",
+         event      = "baseline_visit_arm_1",
+         link = list(
+           domain         = "redcappre.idibell.cat",
+           redcap_version = "13.1.9",
+           proj_id        = 800,
+           event_id       = c("baseline_visit_arm_1" = 811,
+                               "follow_up_visit_da_arm_1" = 812)
+         ))
+```
+
+Añade una columna `Link` con la URL directa a cada registro en REDCap (domain/versión/proj_id en *Project Home*; event_id en *Project Setup → Define My Events*).
+
+## `rd_event()`
+
+REDCap no exporta filas de eventos sin datos recogidos → `rd_query()` no puede detectar missing en un evento que **no existe** como fila.
+
+```r
+example <- rd_event(covican_transformed,
+                    event = "follow_up_visit_da_arm_1")
+example$results
+```
+
+**38 registros** no tienen fila para ese evento — hay que sumarlos al missing real.
+
+```r
+# Solo en el subgrupo que debía tener esa visita
+rd_event(covican_transformed,
+         event  = "follow_up_visit_da_arm_1",
+         filter = "screening_fail_crit==0")
+```
+
+Acepta los mismos argumentos extra que `rd_query()` (`addTo`, `report_title`, `report_zeros`, `link`...).
+
+## `check_queries()`
+
+Compara un informe de queries **antiguo** con uno **nuevo** tras corregir datos en REDCap.
+
+```r
+check <- check_queries(old = example$queries,
+                       new = new_example$queries)
+check$results
+```
+
+Añade una columna `Modification` con 4 categorías:
+
+| Categoría | Significado |
+|---|---|
+| Pendiente | Sigue sin resolver |
+| Solucionada | Ya no aparece |
+| **Miscorregida** | Mismo record+variable, pero otro motivo |
+| Nueva | No estaba en el informe antiguo |
+
+**Ejemplo real:** 7 pendientes, 4 solucionadas, 1 miscorregida, 1 nueva.
+
+## `rd_export()`
+
+Exporta las queries identificadas a un fichero `.xlsx`.
+
+```r
+# La forma más simple -> crea "example.xlsx" en el directorio actual
+rd_export(example)
+```
+
+```r
+# Personalizado
+rd_export(queries    = example$queries,
+          column     = "Link",
+          sheet_name = "Queries - Proyecto",
+          path       = "C:/User/Desktop/queries.xlsx",
+          password   = "123")
+```
+
+`column` convierte esa columna en hiperlinks clicables dentro del Excel.
+
+# Resumen {background-color="#1d3557"}
+
+## Cheat-sheet
+
+| Bloque | Función | Para qué |
+|---|---|---|
+| Leer | `redcap_data()` | Importar (ficheros o API) |
+| Procesar | `rd_transform()` | Pipeline completo de limpieza |
+| Procesar | `rd_dates / rd_checkbox / rd_factor / rd_recalculate / rd_dictionary / rd_split / rd_delete_vars` | Pasos individuales del pipeline |
+| Procesar | `rd_insert_na / rd_rlogic` | Utilidades puntuales |
+| Queries | `rd_query()` | Missing, outliers, condiciones libres |
+| Queries | `rd_event()` | Eventos ausentes (longitudinal) |
+| Queries | `check_queries()` | Comparar informes antiguo vs. nuevo |
+| Queries | `rd_export()` | Exportar a Excel |
+
+## 🚧 Próximas funciones {background-color="#6b4226"}
+
+::: {.callout-important}
+**Hueco reservado — ~5 min.** Sección pendiente de rellenar cuando las nuevas funciones del paquete estén listas.
+:::
+
+<!-- TODO: sustituir cada placeholder por la función real -->
+
+### Función nueva 1
+
+- **Qué hace:** _(pendiente)_
+- **Por qué hace falta:** _(pendiente)_
+- **Ejemplo:**
+```r
+# (pendiente)
+```
+
+## 🚧 Próximas funciones (cont.)
+
+### Función nueva 2
+
+- **Qué hace:** _(pendiente)_
+- **Por qué hace falta:** _(pendiente)_
+- **Ejemplo:**
+```r
+# (pendiente)
+```
+
+::: {.notes}
+Si al final son más de dos funciones, duplicar esta slide tal cual. Si son menos, borrar la que sobre — la sección "Resumen" y "Recursos" no dependen de cuántas sean.
+:::
+
+## Recursos y cómo pedir ayuda
+
+- 📦 Web del paquete: **bruigtp.github.io/REDCapDM**
+- 📄 Artículo: *BMC Medical Research Methodology* (2024) — `citation("REDCapDM")`
+- 🐛 Bugs / dudas: **GitHub Issues** del repositorio
+- 📚 Vignettes completas: *REDCapDM*, *Data reading and processing*, *Queries*
+
+# ¡Gracias! {background-color="#1d3557"}
+
+### ¿Preguntas?
