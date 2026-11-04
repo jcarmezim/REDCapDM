@@ -31,6 +31,7 @@
 #' @param sep Character string specifying the field separator for the exported dictionary CSV file. Defaul `","`.
 #' @param filter_field Optional character vector of field names to request from the API.
 #' @param survey_fields Logical; include survey-related fields when pulling via API. Default `FALSE`.
+#' @param rm_mdc Logical. Controls how REDCap's built-in Missing Data Codes (e.g. `NI`, `UNK`, `NASK`) are handled. If `TRUE` (default), they are removed: validated text/categorical fields are set to `NA`, and checkbox option columns named after a Missing Data Code (e.g. `var___NI`) are dropped entirely. If `FALSE`, they are preserved instead: categorical fields keep the Missing Data Code label in their `.factor` version (and get a placeholder numeric code in the raw version), and only checkbox Missing Data Code columns that were never selected by any record are dropped.
 #'
 #' @return A list with:
 #'   - `data`: Imported dataset.
@@ -60,7 +61,7 @@
 #' @export
 #' @importFrom stats setNames
 
-redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA, token = NA, sep = ",", filter_field = NULL, survey_fields = FALSE) {
+redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA, token = NA, sep = ",", filter_field = NULL, survey_fields = FALSE, rm_mdc = TRUE) {
 
   event_form <- NULL
 
@@ -442,6 +443,160 @@ redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA
         dplyr::filter(!.data$field_name %in% var_noevent)
     }
   }
+
+  # Define the Missing Data Codes (MDCs)
+  missing_codes <- c(
+    "NI", "INV", "UNK", "NASK", "ASKU", "NAV", "MSK",
+    "NA", "NAVU", "NP", "QS", "QI", "TRC", "UNC",
+    "DER", "PINF", "NINF", "OTH"
+  )
+
+  # Create the column pattern for checkboxes with Missing Data Codes (MDCs)
+  checkbox_mdc_pattern <- stringr::regex(
+    paste0("___(", paste(missing_codes, collapse = "|"), ")(\\.factor)?$"),
+    ignore_case = TRUE
+  )
+
+  # Identify which fields are of type 'text' & have non-null validation
+  validated_text_fields <- data_def$dictionary |>
+    dplyr::filter(
+      .data$field_type == "text",
+      !is.na(.data$text_validation_type_or_show_slider_number) &
+        .data$text_validation_type_or_show_slider_number != ""
+    ) |>
+    dplyr::pull(.data$field_name)
+
+  #Identify categorical text field types
+  categorical_fields <- data_def$dictionary |>
+    dplyr::filter(.data$field_type %in% c("radio", "yesno", "dropdown", "truefalse")) |>
+    dplyr::pull(.data$field_name)
+
+  if (rm_mdc) {
+    # Include .factor versions in "radio" & "yesno" field types
+    categorical_factor_fields <- paste0(categorical_fields, ".factor")
+    # Filter only the text validated columns
+    all_target_fields <- c(validated_text_fields, categorical_fields, categorical_factor_fields)
+    target_columns <- intersect(all_target_fields, colnames(data_def$data))
+
+    # Replace Missing Data Codes with NA in the selected columns
+    data_def$data <- data_def$data |>
+      dplyr::select(
+        -dplyr::matches(checkbox_mdc_pattern)
+      ) |>
+      dplyr::mutate(
+        dplyr::across(
+          dplyr::all_of(target_columns),
+          ~ {
+            val_char <- stringr::str_trim(as.character(.x))
+            val_clean <- ifelse(
+              val_char %in% missing_codes,
+              NA_character_,
+              val_char
+            )
+            return(val_clean)
+          }
+        )
+      )
+    warning("All the Missing Data Codes have been removed.")
+  } else {
+
+    # Convert into NA all validated text fields.
+    text_targets <- intersect(validated_text_fields, colnames(data_def$data))
+    if (length(text_targets) > 0) {
+      data_def$data <- data_def$data |>
+        dplyr::mutate(
+          dplyr::across(
+            dplyr::all_of(text_targets),
+            ~ {
+              val_char <- stringr::str_trim(as.character(.x))
+              ifelse(toupper(val_char) %in% missing_codes, NA_character_, val_char)
+              }
+            )
+        )
+      }
+    # Process categorical variables
+    cat_targets <- intersect(categorical_fields, colnames(data_def$data))
+    for (var in cat_targets) {
+      factor_var <- paste0(var, ".factor")
+
+      if (factor_var %in% colnames(data_def$data)) {
+
+        # Make sure that MDC labels are in the .factor version
+        data_def$data[[factor_var]] <- dplyr::coalesce(
+          as.character(data_def$data[[factor_var]]),
+          ifelse(toupper(as.character(data_def$data[[var]])) %in% missing_codes,
+                 as.character(data_def$data[[var]]), NA_character_)
+        )
+
+        # Assign a numerical sequential code to MDC in the original variable
+        orig_vals <- as.character(data_def$data[[var]])
+        is_mdc_mask <- toupper(orig_vals) %in% missing_codes
+
+        if (any(is_mdc_mask, na.rm = TRUE)) {
+
+          suppressWarnings({
+            numeric_codes <- as.numeric(orig_vals[!is_mdc_mask & !is.na(orig_vals)])
+          })
+          next_code <- if (length(numeric_codes) > 0) max(numeric_codes, na.rm = TRUE) + 1 else 1
+
+          orig_vals[is_mdc_mask] <- as.character(next_code)
+          data_def$data[[var]] <- orig_vals
+        }
+      }
+      }
+
+    # Checkboxes: Remove only empy MDC columns
+    cb_mdc_cols <- grep(tolower(checkbox_mdc_pattern), colnames(data_def$data), value = TRUE)
+    cols_to_remove <- c()
+
+    base_cb_cols <- unique(stringr::str_remove(cb_mdc_cols, "\\.factor$"))
+
+    for (col in base_cb_cols) {
+      if (col %in% colnames(data_def$data)) {
+
+        col_data <- data_def$data[[col]]
+
+        has_at_least_one_1 <- any(col_data == 1 | col_data == "1", na.rm = TRUE)
+
+        if (!has_at_least_one_1) {
+          cols_to_remove <- c(cols_to_remove, col)
+
+          factor_col <- paste0(col, ".factor")
+          if (factor_col %in% colnames(data_def$data)) {
+            cols_to_remove <- c(cols_to_remove, factor_col)
+            }
+          }
+        }
+      }
+
+    if (length(cols_to_remove) > 0) {
+      data_def$data <- data_def$data |>
+        dplyr::select(-dplyr::all_of(cols_to_remove))
+    }
+  }
+
+  # Clean HTML labels
+  data_def$dictionary <- data_def$dictionary |>
+    dplyr::mutate(
+      field_label = dplyr::case_when(
+        is.na(field_label) | !nzchar(field_label) ~ field_label,
+
+        TRUE ~ {
+          lbl_clean <- stringr::str_replace_all(field_label, "<[^>]+>", " ")
+
+          lbl_clean <- stringr::str_replace_all(lbl_clean, "&nbsp;", " ")
+          lbl_clean <- stringr::str_replace_all(lbl_clean, "&amp;", "&")
+          lbl_clean <- stringr::str_replace_all(lbl_clean, "&lt;", "<")
+          lbl_clean <- stringr::str_replace_all(lbl_clean, "&gt;", ">")
+          lbl_clean <- stringr::str_replace_all(lbl_clean, "&quot;", '"')
+          lbl_clean <- stringr::str_replace_all(lbl_clean, "&#39;", "'")
+
+          lbl_clean <- stringr::str_replace_all(lbl_clean, "[\\r\\n\\t\\u200B\\u200C\\u200D\\uFEFF]", " ")
+
+          stringr::str_squish(lbl_clean)
+        }
+      )
+    )
 
   # Reapply labels to the modified dataset
   data_def$data <- data_def$data |>
