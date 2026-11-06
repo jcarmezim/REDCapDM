@@ -463,13 +463,17 @@ redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA
   )
 
   # Identify which fields are of type 'text' & have non-null validation
-  validated_text_fields <- data_def$dictionary |>
-    dplyr::filter(
-      .data$field_type == "text",
-      !is.na(.data$text_validation_type_or_show_slider_number) &
-        .data$text_validation_type_or_show_slider_number != ""
-    ) |>
-    dplyr::pull(.data$field_name)
+  validated_text_fields <- if ("text_validation_type_or_show_slider_number" %in% names(data_def$dictionary)) {
+    data_def$dictionary |>
+      dplyr::filter(
+        .data$field_type == "text",
+        !is.na(.data$text_validation_type_or_show_slider_number) &
+          .data$text_validation_type_or_show_slider_number != ""
+      ) |>
+      dplyr::pull(.data$field_name)
+  } else {
+    character(0)
+  }
 
   #Identify categorical text field types
   categorical_fields <- data_def$dictionary |>
@@ -482,6 +486,16 @@ redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA
     # Filter only the text validated columns
     all_target_fields <- c(validated_text_fields, categorical_fields, categorical_factor_fields)
     target_columns <- intersect(all_target_fields, colnames(data_def$data))
+
+    # Determine, before touching anything, whether there is actually something to remove
+    removed_checkbox_cols <- colnames(data_def$data)[
+      stringr::str_detect(colnames(data_def$data), checkbox_mdc_pattern)
+    ]
+    n_mdc_values <- sum(vapply(
+      data_def$data[intersect(target_columns, colnames(data_def$data))],
+      function(x) sum(stringr::str_trim(as.character(x)) %in% missing_codes, na.rm = TRUE),
+      numeric(1)
+    ))
 
     # Replace Missing Data Codes with NA in the selected columns
     data_def$data <- data_def$data |>
@@ -503,7 +517,10 @@ redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA
           }
         )
       )
-    warning("All the Missing Data Codes have been removed.")
+
+    if (length(removed_checkbox_cols) > 0 || n_mdc_values > 0) {
+      warning("All the Missing Data Codes have been removed.", call. = FALSE)
+    }
   } else {
 
     # Convert into NA all validated text fields.
@@ -552,7 +569,9 @@ redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA
       }
 
     # Checkboxes: Remove only empy MDC columns
-    cb_mdc_cols <- grep(tolower(checkbox_mdc_pattern), colnames(data_def$data), value = TRUE)
+    cb_mdc_cols <- colnames(data_def$data)[
+      stringr::str_detect(colnames(data_def$data), checkbox_mdc_pattern)
+    ]
     cols_to_remove <- c()
 
     base_cb_cols <- unique(stringr::str_remove(cb_mdc_cols, "\\.factor$"))
