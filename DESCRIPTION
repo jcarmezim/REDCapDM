@@ -33,14 +33,14 @@ Imports:
     cli,
     forcats,
     lifecycle,
-    magrittr
+    magrittr,
+    ggplot2
 Suggests:
     knitr,
     rmarkdown,
     kableExtra,
     testthat (>= 3.0.0),
     mockery,
-    ggplot2,
     shiny,
     DT,
     lubridate

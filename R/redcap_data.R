@@ -79,6 +79,11 @@ redcap_data <- function(data_path = NA, dic_path = NA, event_path = NA, uri = NA
     stop("Too many arguments. Use `uri` and `token` for API connection or `data_path` and `dic_path` for exported data.", call. = FALSE)
   }
 
+  # Warning: either data_path or dic_path is specified alone
+  if ((!is.na(data_path) & is.na(dic_path)) | (is.na(data_path) & !is.na(dic_path))) {
+    stop("Both `data_path` and `dic_path` are required for exported data.", call. = FALSE)
+  }
+
   # Warning: either uri or token is specified alone
   if ((!is.na(uri) & is.na(token)) | (is.na(uri) & !is.na(token))) {
     stop("Both `uri` and `token` are required for API connection.", call. = FALSE)
