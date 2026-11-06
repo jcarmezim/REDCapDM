@@ -38,9 +38,7 @@ make_mdc_fixture <- function() {
   list(data = sample_data, dic = dic_rows)
 }
 
-run_redcap_data_mdc <- function(rm_mdc) {
-  fx <- make_mdc_fixture()
-
+run_redcap_data_mdc <- function(rm_mdc, fx = make_mdc_fixture()) {
   tmp_r <- tempfile(fileext = ".R")
   write_redcap_r_export_mdc(fx$data, tmp_r)
 
@@ -57,6 +55,14 @@ test_that("rm_mdc = TRUE replaces Missing Data Codes with NA in text/categorical
   expect_true(is.na(out$data$lab_value[2]))
 })
 
+test_that("rm_mdc = TRUE preserves the factor class and levels of .factor columns", {
+  out <- suppressWarnings(run_redcap_data_mdc(rm_mdc = TRUE))
+
+  expect_true(is.factor(out$data$sex.factor))
+  expect_equal(levels(out$data$sex.factor), c("Male", "Female"))
+  expect_true(is.na(out$data$sex.factor[3]))
+})
+
 test_that("rm_mdc = TRUE drops checkbox columns named after a Missing Data Code", {
   out <- suppressWarnings(run_redcap_data_mdc(rm_mdc = TRUE))
 
@@ -66,23 +72,59 @@ test_that("rm_mdc = TRUE drops checkbox columns named after a Missing Data Code"
   expect_true("chk___1" %in% names(out$data))
 })
 
-test_that("rm_mdc = TRUE does NOT warn when the dataset has no Missing Data Codes at all", {
-  fx <- make_mdc_fixture()
-  fx$data$sex[3] <- "1"      # no MDC left
-  fx$data$lab_value[2] <- "6.0"
-  fx$data$sex.factor[3] <- "Male"
-
-  tmp_r <- tempfile(fileext = ".R")
-  write_redcap_r_export_mdc(fx$data, tmp_r)
-  tmp_dic <- tempfile(fileext = ".csv")
-  write.csv(fx$dic, tmp_dic, row.names = FALSE, quote = FALSE)
-
-  # KNOWN BUG as currently written: the warning() call in the rm_mdc = TRUE
-  # branch is unconditional, so this is expected to currently FAIL.
+test_that("rm_mdc = TRUE warns when the dataset actually contains Missing Data Codes", {
   expect_warning(
-    redcap_data(data_path = tmp_r, dic_path = tmp_dic, rm_mdc = TRUE),
+    run_redcap_data_mdc(rm_mdc = TRUE),
+    "Missing Data Codes"
+  )
+})
+
+test_that("rm_mdc = TRUE does NOT warn when the dataset has no Missing Data Codes at all", {
+  # Deliberately has no checkbox field at all: the checkbox-MDC columns are
+  # dropped purely by NAME match (any ___<code> column, regardless of its
+  # values), so a fixture that still has a chk___NI column -- even one that
+  # was never selected -- would always trigger the warning on its own.
+  clean_data <- data.frame(
+    record_id = 1:3,
+    sex = c("1", "2", "1"),
+    lab_value = c("5.2", "6.0", "7.1"),
+    stringsAsFactors = FALSE
+  )
+  clean_data$sex.factor <- factor(c("Male", "Female", "Male"), levels = c("Male", "Female"))
+
+  dic_rows <- data.frame(
+    field_name = c("record_id", "sex", "lab_value"),
+    form_name = "form1",
+    field_type = c("text", "radio", "text"),
+    text_validation_type_or_show_slider_number = c(NA, NA, "number"),
+    field_label = c("Record ID", "Sex", "Lab value"),
+    stringsAsFactors = FALSE
+  )
+
+  expect_warning(
+    run_redcap_data_mdc(rm_mdc = TRUE, fx = list(data = clean_data, dic = dic_rows)),
     regexp = NA
   )
+})
+
+test_that("rm_mdc = TRUE does not crash when the dictionary has no validation column at all", {
+  fx <- make_mdc_fixture()
+  fx$dic$text_validation_type_or_show_slider_number <- NULL
+
+  out <- suppressWarnings(run_redcap_data_mdc(rm_mdc = TRUE, fx = fx))
+
+  # lab_value is no longer recognized as a validated text field without that
+  # column, so it is left untouched -- but the call must not error out.
+  expect_equal(out$data$lab_value[2], "ASKU")
+})
+
+test_that("redcap_data() does not crash when the dictionary has no field_label column at all", {
+  fx <- make_mdc_fixture()
+  fx$dic$field_label <- NULL
+
+  out <- suppressWarnings(run_redcap_data_mdc(rm_mdc = TRUE, fx = fx))
+
+  expect_false("field_label" %in% names(out$dictionary))
 })
 
 test_that("rm_mdc = FALSE keeps the Missing Data Code label in the .factor column", {
@@ -111,11 +153,7 @@ test_that("rm_mdc = FALSE still wipes Missing Data Codes to NA in validated text
 test_that("rm_mdc = FALSE drops a checkbox Missing Data Code column only when nobody ever selected it", {
   out <- run_redcap_data_mdc(rm_mdc = FALSE)
 
-  # chk___NI is 0 for every record in the fixture -> should be dropped.
-  # KNOWN BUG as currently written: tolower(checkbox_mdc_pattern) lowercases
-  # the *pattern* (-> "ni") but grep() against the (still uppercase) column
-  # names is case-sensitive with no ignore.case = TRUE, so this never matches
-  # and chk___NI is NOT removed. Expected to currently FAIL.
+  # chk___NI is 0 for every record in the fixture -> must be dropped.
   expect_false("chk___NI" %in% names(out$data))
 })
 
@@ -123,16 +161,8 @@ test_that("rm_mdc = FALSE keeps a checkbox Missing Data Code column when at leas
   fx <- make_mdc_fixture()
   fx$data$chk___NI <- c(1, 0, 0)  # record 1 *did* select "Not Indicated"
 
-  tmp_r <- tempfile(fileext = ".R")
-  write_redcap_r_export_mdc(fx$data, tmp_r)
-  tmp_dic <- tempfile(fileext = ".csv")
-  write.csv(fx$dic, tmp_dic, row.names = FALSE, quote = FALSE)
+  out <- run_redcap_data_mdc(rm_mdc = FALSE, fx = fx)
 
-  out <- redcap_data(data_path = tmp_r, dic_path = tmp_dic, rm_mdc = FALSE)
-
-  # Same underlying bug as above would also make this assertion moot (the
-  # column is never a removal candidate in the first place while the match
-  # is broken), but once fixed this is the case that must survive.
   expect_true("chk___NI" %in% names(out$data))
 })
 
